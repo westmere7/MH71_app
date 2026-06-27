@@ -400,6 +400,7 @@ export function TenantRow({
           open={payOpen}
           onOpenChange={setPayOpen}
           roomCode={room.code}
+          tenantName={name}
           total={bill.total}
           defaultMethod={payMethod}
           onConfirm={(method, amountPaid) => {

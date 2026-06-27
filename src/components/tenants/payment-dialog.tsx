@@ -19,6 +19,7 @@ export function PaymentDialog({
   open,
   onOpenChange,
   roomCode,
+  tenantName,
   total,
   defaultMethod,
   onConfirm,
@@ -26,6 +27,7 @@ export function PaymentDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   roomCode: string;
+  tenantName?: string | null;
   total: number;
   defaultMethod: Method;
   onConfirm: (method: Method, amountPaid: number | null) => void;
@@ -48,7 +50,10 @@ export function PaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Thu tiền — {roomCode}</DialogTitle>
+          <DialogTitle>
+            Thu tiền — {roomCode}
+            {tenantName ? ` · ${tenantName}` : ""}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center justify-between rounded-xl bg-surface-2 px-4 py-3">
