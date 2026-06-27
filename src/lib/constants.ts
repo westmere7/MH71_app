@@ -18,14 +18,14 @@ export const PAYMENT_STATUS: Record<PaymentStatus, StatusMeta> = {
   // in the payment dialog; it's still stored, just not surfaced as the label).
   paid_cash: {
     label: "Đã thanh toán",
-    short: "Đã thanh toán",
+    short: "Đã TT",
     chip: "bg-success-surface text-success",
     dot: "bg-success",
     isPaid: true,
   },
   paid_transfer: {
     label: "Đã thanh toán",
-    short: "Đã thanh toán",
+    short: "Đã TT",
     chip: "bg-success-surface text-success",
     dot: "bg-success",
     isPaid: true,

@@ -73,7 +73,7 @@ export function MonthSwitcher() {
           {ready && selectedMonth ? (
             <>
               <CalendarDays className="h-4 w-4 text-primary" />
-              {monthLabel(selectedMonth.year, selectedMonth.month)}
+              {selectedMonth.month} / {selectedMonth.year}
               <ChevronDown className="h-4 w-4 text-muted" />
             </>
           ) : (
@@ -98,7 +98,7 @@ export function MonthSwitcher() {
               selected={m.id === selectedMonthId}
               onSelect={() => setSelectedMonthId(m.id)}
             >
-              {monthLabel(m.year, m.month)}
+              {m.month} / {m.year}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

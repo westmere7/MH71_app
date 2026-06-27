@@ -13,9 +13,6 @@ import type { StatusChoice } from "@/lib/constants";
 import type { PaymentStatus } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 
-// movement (px) past which a press is treated as a scroll, not a tap
-const DRAG_THRESHOLD = 10;
-
 export function StatusChip({
   status,
   className,
@@ -50,37 +47,22 @@ export function StatusMenu({
   const meta = PAYMENT_STATUS[status];
   const current = statusChoiceOf(status);
   const [open, setOpen] = React.useState(false);
-  const start = React.useRef<{ x: number; y: number } | null>(null);
-  const dragged = React.useRef(false);
-
-  function onPointerDown(e: React.PointerEvent) {
-    start.current = { x: e.clientX, y: e.clientY };
-    dragged.current = false;
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!start.current) return;
-    if (
-      Math.abs(e.clientX - start.current.x) > DRAG_THRESHOLD ||
-      Math.abs(e.clientY - start.current.y) > DRAG_THRESHOLD
-    ) {
-      dragged.current = true;
-    }
-  }
-  function handleOpenChange(next: boolean) {
-    // a touch-and-drag (scroll) must not open the menu — only a deliberate tap
-    if (next && dragged.current) {
-      dragged.current = false;
-      return;
-    }
-    setOpen(next);
-  }
+  // open state captured at pointer-down, before any dismiss fires
+  const wasOpenOnDown = React.useRef(false);
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         disabled={disabled}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
+        // Radix opens on pointer-down, which a touch-scroll triggers too. Suppress
+        // that and open on a real click instead — a scroll fires no click event.
+        onPointerDown={(e) => {
+          wasOpenOnDown.current = open;
+          e.preventDefault();
+        }}
+        onClick={() => {
+          if (!disabled) setOpen(!wasOpenOnDown.current);
+        }}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50",
           meta.chip,
