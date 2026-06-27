@@ -95,11 +95,8 @@ export function useAllBills() {
     queryKey: ["bills", "all"],
     queryFn: async (): Promise<Bill[]> => {
       const sb = getSupabaseBrowser();
-      const { data, error } = await sb
-        .from("bills")
-        .select(
-          "id, month_id, room_id, total, room_fee, electricity_amount, units, trash_fee, payment_status",
-        );
+      // select * so it works whether or not amount_paid (migration 0005) exists
+      const { data, error } = await sb.from("bills").select("*");
       if (error) throw error;
       return (data ?? []) as Bill[];
     },

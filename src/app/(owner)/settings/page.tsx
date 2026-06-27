@@ -3,14 +3,30 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Save, Building2, CalendarPlus, Coins, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Save,
+  Building2,
+  CalendarPlus,
+  Coins,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk } from "@/lib/queries";
-import { updateSettings, updateMonthMeta, createNextMonth } from "@/lib/mutations";
+import { updateSettings, updateMonthMeta, createNextMonth, deleteMonth } from "@/lib/mutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 import { PROGRESS_STATUS, PHASE_LABELS } from "@/lib/constants";
 import { monthLabel } from "@/lib/format";
@@ -25,6 +41,14 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-extrabold tracking-tight">Cài đặt</h1>
+
+      <NewMonthCard
+        onCreated={(m) => {
+          qc.invalidateQueries({ queryKey: qk.months });
+          qc.invalidateQueries({ queryKey: ["bills"] });
+          setSelectedMonthId(m.id);
+        }}
+      />
 
       <GeneralSettings key={settings?.updated_at} qc={qc} settings={settings} />
 
@@ -45,14 +69,6 @@ export default function SettingsPage() {
       </Link>
 
       {selectedMonth && <MonthSettings key={selectedMonth.id} qc={qc} month={selectedMonth} />}
-
-      <NewMonthCard
-        onCreated={(m) => {
-          qc.invalidateQueries({ queryKey: qk.months });
-          qc.invalidateQueries({ queryKey: ["bills"] });
-          setSelectedMonthId(m.id);
-        }}
-      />
 
       <Card>
         <CardHeader>
@@ -158,8 +174,70 @@ function MonthSettings({
             </Button>
           </div>
         </Field>
+
+        <div className="mt-1 flex flex-col gap-2 border-t border-border pt-4">
+          <span className="text-sm font-semibold text-muted">Khu vực nguy hiểm</span>
+          <DeleteMonthButton qc={qc} month={month} />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DeleteMonthButton({
+  qc,
+  month,
+}: {
+  qc: ReturnType<typeof useQueryClient>;
+  month: MonthRow;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const del = useMutation({
+    mutationFn: () => deleteMonth(month.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.months });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      setOpen(false);
+      toast.success(`Đã xoá ${monthLabel(month.year, month.month)}`);
+    },
+    onError: () => toast.error("Không xoá được tháng."),
+  });
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="self-start border-danger/40 text-danger"
+      >
+        <Trash2 className="h-5 w-5" />
+        Xoá tháng này
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xoá {monthLabel(month.year, month.month)}?</DialogTitle>
+            <DialogDescription>
+              Toàn bộ hoá đơn (số điện, tiền phòng, trạng thái thu) của tháng này sẽ bị xoá
+              <b> vĩnh viễn và KHÔNG THỂ khôi phục</b>. Chỉ xoá khi bạn chắc chắn nhập nhầm tháng.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Huỷ
+            </Button>
+            <Button variant="danger" onClick={() => del.mutate()} disabled={del.isPending}>
+              {del.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Trash2 className="h-5 w-5" />
+              )}
+              Xoá vĩnh viễn
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

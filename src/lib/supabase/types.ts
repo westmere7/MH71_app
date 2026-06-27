@@ -76,6 +76,7 @@ export interface Bill {
   trash_fee: number;
   total: number;
   payment_status: PaymentStatus;
+  amount_paid: number | null; // số tiền đã thu thực tế; null = thu đủ (= total)
   paid_at: string | null;
   notes: string | null;
   created_at: string;

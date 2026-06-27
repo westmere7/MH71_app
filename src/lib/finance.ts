@@ -1,5 +1,5 @@
 import type { Bill, MonthRow, ProgressStatus } from "./supabase/types";
-import { isPaidStatus } from "./constants";
+import { isPaidStatus, paidAmountOf } from "./constants";
 
 // =====================================================================
 // Money model (matches the owner's sheet):
@@ -55,7 +55,7 @@ export function computeMonthStats(bills: Bill[], month?: MonthRow | null): Month
     roomFeeTotal += b.room_fee;
     if (paid) {
       paidCount += 1;
-      collected += b.total;
+      collected += paidAmountOf(b); // counts the real amount when "trả thiếu"
     }
   }
 

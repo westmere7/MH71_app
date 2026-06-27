@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Upload, LogOut } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
-import { upsertTenant, moveOutTenant, updateRoomRent, type TenantInput } from "@/lib/mutations";
+import { upsertTenant, updateRoomRent, type TenantInput } from "@/lib/mutations";
 import { uploadImage } from "@/lib/upload";
 import { qk } from "@/lib/queries";
 import { formatVND } from "@/lib/format";
@@ -86,20 +86,6 @@ export function TenantFormDialog({
       onOpenChange(false);
     },
     onError: () => toast.error("Lưu không thành công."),
-  });
-
-  const moveOut = useMutation({
-    mutationFn: async () => {
-      if (!tenant) return;
-      const today = new Date().toISOString().slice(0, 10);
-      return moveOutTenant(tenant.id, today);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.tenants });
-      toast.success("Đã ghi nhận khách trả phòng");
-      onOpenChange(false);
-    },
-    onError: () => toast.error("Không thực hiện được."),
   });
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -214,19 +200,6 @@ export function TenantFormDialog({
               {save.isPending && <Loader2 className="h-5 w-5 animate-spin" />}
               Lưu
             </Button>
-            {tenant && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (confirm("Ghi nhận khách này đã trả phòng?")) moveOut.mutate();
-                }}
-                disabled={moveOut.isPending}
-                className="text-danger"
-              >
-                <LogOut className="h-5 w-5" />
-                Khách trả phòng
-              </Button>
-            )}
           </div>
         </div>
       </DialogContent>

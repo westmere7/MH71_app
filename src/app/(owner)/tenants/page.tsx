@@ -25,7 +25,7 @@ function matchesFilter(status: PaymentStatus | undefined, f: Filter): boolean {
   if (f === "all") return true;
   if (!status) return f === "vacant";
   if (f === "paid") return isPaidStatus(status);
-  if (f === "due") return status === "unpaid" || status === "partial";
+  if (f === "due") return status === "unpaid";
   if (f === "vacant") return status === "vacant";
   return true;
 }

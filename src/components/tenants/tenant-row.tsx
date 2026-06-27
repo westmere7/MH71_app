@@ -9,6 +9,8 @@ import {
   UserPlus,
   Video,
   Clock,
+  LogOut,
+  DoorClosed,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,10 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { StatusMenu } from "./status-menu";
 import { PaymentCardDialog } from "./payment-card";
+import { PaymentDialog } from "./payment-dialog";
 import { TenantFormDialog } from "./tenant-form-dialog";
-import { updateBillStatus } from "@/lib/mutations";
+import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
 import { qk, usePaymentLogs } from "@/lib/queries";
-import { PAYMENT_STATUS } from "@/lib/constants";
+import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
 import { formatVND, formatNumber, formatDateTime, tenancyDuration } from "@/lib/format";
 import type { Bill, MonthRow, PaymentStatus, Room, Tenant } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
@@ -42,17 +45,29 @@ export function TenantRow({
   const [open, setOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [formOpen, setFormOpen] = React.useState(false);
+  const [payOpen, setPayOpen] = React.useState(false);
+  const [payMethod, setPayMethod] = React.useState<"paid_cash" | "paid_transfer">("paid_transfer");
 
   const logsQ = usePaymentLogs(open && bill ? bill.id : null);
 
   const statusMut = useMutation({
-    mutationFn: (s: PaymentStatus) => updateBillStatus(bill!.id, s),
-    onMutate: async (s) => {
+    mutationFn: (v: { status: PaymentStatus; amountPaid?: number | null }) =>
+      updateBillStatus(bill!.id, v.status, v.amountPaid ?? null),
+    onMutate: async ({ status, amountPaid }) => {
       const key = qk.bills(month.id);
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<Bill[]>(key);
       qc.setQueryData<Bill[]>(key, (old) =>
-        (old ?? []).map((b) => (b.id === bill!.id ? { ...b, payment_status: s } : b)),
+        (old ?? []).map((b) =>
+          b.id === bill!.id
+            ? {
+                ...b,
+                payment_status: status,
+                amount_paid: amountPaid ?? null,
+                ...(status === "vacant" ? { tenant_name: null, tenant_id: null } : {}),
+              }
+            : b,
+        ),
       );
       return { prev, key };
     },
@@ -67,24 +82,74 @@ export function TenantRow({
     },
   });
 
+  // "Trả phòng": move the tenant out + set the room to Trống (vacant). Setting the
+  // status to "Trống" manually does the same thing.
+  const checkoutMut = useMutation({
+    mutationFn: async () => {
+      if (tenant) await moveOutTenant(tenant.id, new Date().toISOString().slice(0, 10));
+      if (bill) await updateBillStatus(bill.id, "vacant");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: qk.tenants });
+      toast.success("Đã trả phòng — phòng chuyển sang Trống");
+    },
+    onError: () => toast.error("Không thực hiện được."),
+  });
+
+  function checkout() {
+    if (
+      confirm(
+        `Xác nhận phòng ${room.code} đã TRẢ PHÒNG?\n\nThông tin khách hiện tại sẽ được gỡ và phòng chuyển sang "Trống".`,
+      )
+    )
+      checkoutMut.mutate();
+  }
+
+  function onStatusSelect(s: PaymentStatus) {
+    if (s === "paid_cash" || s === "paid_transfer") {
+      // open the payment dialog to (optionally) record a "trả thiếu" amount
+      setPayMethod(s);
+      setPayOpen(true);
+    } else if (s === "vacant" && tenant) {
+      checkout(); // choosing "Trống" while a tenant is in the room = trả phòng
+    } else {
+      statusMut.mutate({ status: s });
+    }
+  }
+
   const total = bill?.total ?? 0;
+  const vacant = bill?.payment_status === "vacant";
   const name = tenant?.name ?? bill?.tenant_name ?? null;
-  const duration = tenancyDuration(tenant?.move_in_date);
+  const displayName = !vacant && name ? name : "(Phòng trống)";
+  const duration = vacant ? null : tenancyDuration(tenant?.move_in_date);
 
   function toggle() {
     setOpen((o) => !o);
   }
 
-  // total + status are shown inline on desktop and on a second row on mobile
-  const totalEl = (
-    <span className="text-base font-bold tabular-nums">{bill ? formatVND(total) : "—"}</span>
+  // total + status are shown inline on desktop and on a second row on mobile.
+  // when underpaid ("trả thiếu") show "đã thu / tổng", e.g. 1.500.000/2.000.000 đ
+  const underpaid = bill ? isUnderpaid(bill) : false;
+  const totalEl = !bill ? (
+    <span className="text-base font-bold tabular-nums">—</span>
+  ) : underpaid ? (
+    <span className="text-base font-bold tabular-nums">
+      <span className="text-warning">{formatNumber(paidAmountOf(bill))}</span>
+      <span className="text-muted">/{formatVND(total)}</span>
+    </span>
+  ) : (
+    <span className="text-base font-bold tabular-nums">{formatVND(total)}</span>
   );
+  // legacy "partial" (Còn nợ) bills are shown as "Chưa thanh toán" now
+  const shownStatus: PaymentStatus =
+    bill?.payment_status === "partial" ? "unpaid" : (bill?.payment_status ?? "unpaid");
   const statusEl = bill ? (
     <div onClick={(e) => e.stopPropagation()}>
       <StatusMenu
-        status={bill.payment_status}
-        onSelect={(s) => statusMut.mutate(s)}
-        disabled={statusMut.isPending}
+        status={shownStatus}
+        onSelect={onStatusSelect}
+        disabled={statusMut.isPending || checkoutMut.isPending}
       />
     </div>
   ) : (
@@ -107,32 +172,44 @@ export function TenantRow({
           className="cursor-pointer p-3 sm:p-4"
         >
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* room number */}
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand text-brand-foreground">
-              <span className="text-base font-extrabold">{room.code}</span>
-            </div>
-            {/* avatar */}
-            <Avatar name={name} photoUrl={tenant?.photo_url} size={40} />
+            {/* room number — bold text (no box) so it reads as a label, not an avatar */}
+            <span className="w-9 shrink-0 text-center text-lg font-extrabold tracking-tight text-primary">
+              {room.code}
+            </span>
+            {/* avatar (muted door icon when the room is empty) */}
+            {vacant ? (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted">
+                <DoorClosed className="h-5 w-5" />
+              </span>
+            ) : (
+              <Avatar name={name} photoUrl={tenant?.photo_url} size={40} />
+            )}
             {/* name + phone + duration */}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="truncate font-semibold">{name ?? "Phòng trống"}</span>
-                {tenant?.camera_access && <Video className="h-4 w-4 shrink-0 text-primary" />}
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted">
-                {tenant?.phone ? (
-                  <a
-                    href={`tel:${tenant.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {tenant.phone}
-                  </a>
-                ) : (
-                  <span>Chưa có SĐT</span>
+                <span className={cn("truncate font-semibold", vacant && "text-muted")}>
+                  {displayName}
+                </span>
+                {!vacant && tenant?.camera_access && (
+                  <Video className="h-4 w-4 shrink-0 text-primary" />
                 )}
-                {duration && <span>• {duration}</span>}
               </div>
+              {!vacant && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted">
+                  {tenant?.phone ? (
+                    <a
+                      href={`tel:${tenant.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {tenant.phone}
+                    </a>
+                  ) : (
+                    <span>Chưa có SĐT</span>
+                  )}
+                  {duration && <span>• {duration}</span>}
+                </div>
+              )}
             </div>
             {/* desktop: total + status inline */}
             <div className="hidden items-center gap-5 sm:flex">
@@ -147,8 +224,8 @@ export function TenantRow({
             />
           </div>
 
-          {/* mobile: total + status on a second row */}
-          <div className="mt-2.5 flex items-center justify-between gap-2 sm:hidden">
+          {/* mobile: total + status on a second row, both right-aligned */}
+          <div className="mt-2.5 flex items-center justify-end gap-3 sm:hidden">
             {totalEl}
             {statusEl}
           </div>
@@ -186,10 +263,29 @@ export function TenantRow({
                     <ReceiptText className="h-4 w-4" />
                     Thẻ thanh toán
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
-                    {tenant ? <UserPen className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-                    {tenant ? "Sửa khách" : "Thêm khách"}
-                  </Button>
+                  {tenant ? (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                        <UserPen className="h-4 w-4" />
+                        Sửa khách
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={checkout}
+                        disabled={checkoutMut.isPending}
+                        className="text-danger"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Trả phòng
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                      <UserPlus className="h-4 w-4" />
+                      Thêm khách
+                    </Button>
+                  )}
                 </div>
 
                 {logsQ.data && logsQ.data.length > 0 && (
@@ -247,6 +343,19 @@ export function TenantRow({
         defaultRent={room.default_rent}
         billId={bill?.id}
       />
+      {bill && (
+        <PaymentDialog
+          open={payOpen}
+          onOpenChange={setPayOpen}
+          roomCode={room.code}
+          total={bill.total}
+          defaultMethod={payMethod}
+          onConfirm={(method, amountPaid) => {
+            statusMut.mutate({ status: method, amountPaid });
+            setPayOpen(false);
+          }}
+        />
+      )}
     </Card>
   );
 }

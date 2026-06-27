@@ -10,11 +10,30 @@ function unwrap<T>({ data, error }: { data: T; error: unknown }): T {
 }
 
 // ---- Bills ----
-export async function updateBillStatus(billId: string, status: PaymentStatus) {
+// amountPaid: null = thu đủ (full). A value < total = "trả thiếu" (underpaid).
+export async function updateBillStatus(
+  billId: string,
+  status: PaymentStatus,
+  amountPaid: number | null = null,
+) {
   const sb = getSupabaseBrowser();
-  return unwrap(
-    await sb.from("bills").update({ payment_status: status }).eq("id", billId).select().single(),
-  );
+  // Setting a room to "Trống" also clears the tenant link + name snapshot.
+  const base: Record<string, unknown> =
+    status === "vacant"
+      ? { payment_status: status, tenant_id: null, tenant_name: null }
+      : { payment_status: status };
+
+  // Try with amount_paid; gracefully fall back if migration 0005 isn't applied yet.
+  let res = await sb
+    .from("bills")
+    .update({ ...base, amount_paid: amountPaid })
+    .eq("id", billId)
+    .select()
+    .single();
+  if (res.error && /amount_paid/i.test(res.error.message ?? "")) {
+    res = await sb.from("bills").update(base).eq("id", billId).select().single();
+  }
+  return unwrap(res);
 }
 
 export async function updateBillFields(
@@ -114,6 +133,13 @@ export async function savePricing(rooms: PricingRoom[], trashFee: number, electr
 export async function updateMonthMeta(monthId: string, patch: Partial<MonthRow>) {
   const sb = getSupabaseBrowser();
   return unwrap(await sb.from("months").update(patch).eq("id", monthId).select().single());
+}
+
+/** Permanently delete a month and all its bills (bills cascade on delete). */
+export async function deleteMonth(monthId: string) {
+  const sb = getSupabaseBrowser();
+  const { error } = await sb.from("months").delete().eq("id", monthId);
+  if (error) throw error;
 }
 
 /**

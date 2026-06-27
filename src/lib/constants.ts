@@ -50,17 +50,36 @@ export const PAYMENT_STATUS: Record<PaymentStatus, StatusMeta> = {
   },
 };
 
-// Order shown in the status picker
+// Order shown in the status picker ("partial" is gone — use the "trả thiếu"
+// toggle on a cash/transfer payment instead).
 export const PAYMENT_STATUS_ORDER: PaymentStatus[] = [
   "unpaid",
   "paid_cash",
   "paid_transfer",
-  "partial",
   "vacant",
 ];
 
 export function isPaidStatus(s: PaymentStatus): boolean {
   return s === "paid_cash" || s === "paid_transfer";
+}
+
+/** số tiền đã thu của một hoá đơn (null amount_paid = thu đủ) */
+export function paidAmountOf(b: {
+  payment_status: PaymentStatus;
+  amount_paid: number | null;
+  total: number;
+}): number {
+  if (!isPaidStatus(b.payment_status)) return 0;
+  return b.amount_paid ?? b.total;
+}
+
+/** hoá đơn đã trả nhưng còn thiếu */
+export function isUnderpaid(b: {
+  payment_status: PaymentStatus;
+  amount_paid: number | null;
+  total: number;
+}): boolean {
+  return isPaidStatus(b.payment_status) && b.amount_paid != null && b.amount_paid < b.total;
 }
 
 // ---- Progress status (month-level: ghi điện / thanh toán / thu tiền) ----
