@@ -3,6 +3,7 @@
 import * as React from "react";
 import { MonthProvider } from "@/components/month-provider";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { APP_VERSION } from "@/lib/constants";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { MonthSwitcher } from "./month-switcher";
@@ -33,6 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </header>
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">
             {children}
+            <div className="mt-8 text-center text-xs text-muted/60 md:hidden">
+              MH71 • phiên bản v{APP_VERSION}
+            </div>
           </main>
         </div>
         <BottomNav />

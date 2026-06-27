@@ -16,10 +16,14 @@ export async function POST(request: Request) {
   if (!body.monthId) return NextResponse.json({ error: "missing_month" }, { status: 400 });
 
   const sb = createServiceClient();
-  const { error } = await sb
+  // record completion + timestamp; gracefully fall back if 0006 isn't applied yet
+  let { error } = await sb
     .from("months")
-    .update({ meter_status: "xong" })
+    .update({ meter_status: "xong", meter_filled_at: new Date().toISOString() })
     .eq("id", body.monthId);
+  if (error && /meter_filled_at/i.test(error.message ?? "")) {
+    ({ error } = await sb.from("months").update({ meter_status: "xong" }).eq("id", body.monthId));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,7 @@
 import type { PaymentStatus, ProgressStatus } from "./supabase/types";
 
 export const APP_NAME = "MH71";
+export const APP_VERSION = "1.0.0";
 
 // ---- Payment status (tenant) ----
 export interface StatusMeta {

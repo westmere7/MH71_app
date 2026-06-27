@@ -24,6 +24,7 @@ export interface MonthStats {
   expenses: number; // Tổng chi (months.other_fees)
   profitFull: number; // lợi nhuận nếu thu đủ 100% = totalBilled − Tổng chi
   profitCurrent: number; // lợi nhuận theo số đã thu = collected − Tổng chi
+  meterFilled: boolean; // quản lý đã nhập số điện chưa (có reading_new)
 }
 
 function billCounts(b: Bill) {
@@ -43,9 +44,11 @@ export function computeMonthStats(bills: Bill[], month?: MonthRow | null): Month
   let unitsTotal = 0;
   let trashTotal = 0;
   let roomFeeTotal = 0;
+  let meterFilled = false;
 
   for (const b of bills) {
     const { occupied: occ, paid } = billCounts(b);
+    if (b.reading_new != null) meterFilled = true;
     if (b.payment_status === "vacant") continue;
     if (occ) occupied += 1;
     totalBilled += b.total;
@@ -72,6 +75,7 @@ export function computeMonthStats(bills: Bill[], month?: MonthRow | null): Month
     expenses,
     profitFull: totalBilled - expenses,
     profitCurrent: collected - expenses,
+    meterFilled,
   };
 }
 

@@ -58,6 +58,7 @@ export interface MonthRow {
   collection_status: ProgressStatus;
   other_fees: number;
   meter_note_photo_url: string | null;
+  meter_filled_at: string | null; // khi quản lý bấm "Hoàn tất ghi điện"
   created_at: string;
 }
 

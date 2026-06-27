@@ -137,8 +137,8 @@ export default function DashboardPage() {
           />
           <StatCard
             label="Tiền điện tiêu thụ"
-            value={formatVND(cur.electricityTotal)}
-            sub={`${formatNumber(cur.unitsTotal)} số điện`}
+            value={cur.meterFilled ? formatVND(cur.electricityTotal) : "Chưa ghi"}
+            sub={cur.meterFilled ? `${formatNumber(cur.unitsTotal)} số điện` : "quản lý chưa nhập"}
             icon={Zap}
             tone="warning"
           />

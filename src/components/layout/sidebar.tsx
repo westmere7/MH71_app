@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { NAV_ITEMS } from "./nav-items";
 import { SignOutButton } from "./sign-out-button";
+import { APP_VERSION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({ userEmail }: { userEmail?: string }) {
@@ -45,8 +46,11 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
 
       <div className="mt-auto flex flex-col gap-1 pt-4">
         {userEmail && (
-          <div className="truncate px-3 pb-1 text-xs text-muted" title={userEmail}>
-            {userEmail}
+          <div className="flex items-center justify-between gap-2 px-3 pb-1">
+            <span className="truncate text-xs text-muted" title={userEmail}>
+              {userEmail}
+            </span>
+            <span className="shrink-0 text-xs text-muted/70">v{APP_VERSION}</span>
           </div>
         )}
         <SignOutButton />

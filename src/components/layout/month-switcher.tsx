@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { monthLabel, periodLabel } from "@/lib/format";
+import { monthLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function MonthSwitcher() {
@@ -21,17 +21,12 @@ export function MonthSwitcher() {
       <NavBtn onClick={prevMonth} disabled={!mounted || !hasPrev} label="Tháng trước">
         <ChevronLeft className="h-5 w-5" />
       </NavBtn>
-      <div className="flex min-w-[9.5rem] flex-col items-center px-2 text-center leading-tight">
+      <div className="flex min-w-[8.5rem] items-center justify-center px-2 text-center">
         {ready && selectedMonth ? (
-          <>
-            <span className="flex items-center gap-1.5 text-base font-bold">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              {monthLabel(selectedMonth.year, selectedMonth.month)}
-            </span>
-            <span className="text-xs text-muted">
-              {periodLabel(selectedMonth.period_start, selectedMonth.period_end) || "—"}
-            </span>
-          </>
+          <span className="flex items-center gap-1.5 text-base font-bold">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            {monthLabel(selectedMonth.year, selectedMonth.month)}
+          </span>
         ) : (
           <span className="text-base font-semibold text-muted">Đang tải…</span>
         )}
