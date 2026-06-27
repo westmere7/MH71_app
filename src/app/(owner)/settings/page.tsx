@@ -97,6 +97,12 @@ function nextPeriod(months: MonthRow[]): { year: number; month: number } {
     : { year: latest.year, month: latest.month + 1 };
 }
 
+/** True if the month is the current real-world calendar month. */
+function isCurrentMonth(m: MonthRow): boolean {
+  const now = new Date();
+  return m.year === now.getFullYear() && m.month === now.getMonth() + 1;
+}
+
 /* ------------------------- add / remove month ------------------------- */
 function AddRemoveMonthCard({
   qc,
@@ -150,6 +156,11 @@ function AddRemoveMonthCard({
               <p className="flex items-center gap-2 text-sm text-muted">
                 <Lock className="h-4 w-4 shrink-0" />
                 {monthLabel(month.year, month.month)} đã qua nên đã khoá — không thể xoá.
+              </p>
+            ) : isCurrentMonth(month) ? (
+              <p className="flex items-center gap-2 text-sm text-muted">
+                <Lock className="h-4 w-4 shrink-0" />
+                {monthLabel(month.year, month.month)} là tháng hiện tại — không thể xoá.
               </p>
             ) : (
               <DeleteMonthButton qc={qc} month={month} />

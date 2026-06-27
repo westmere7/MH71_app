@@ -417,6 +417,8 @@ export function TenantRow({
         defaultRent={room.default_rent}
         billId={bill?.id}
         billVacant={vacant}
+        billName={bill?.tenant_name ?? null}
+        billPhone={bill?.tenant_phone ?? null}
       />
       {bill && (
         <PaymentDialog

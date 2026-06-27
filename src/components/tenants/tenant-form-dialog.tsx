@@ -36,6 +36,8 @@ export function TenantFormDialog({
   defaultRent,
   billId,
   billVacant,
+  billName,
+  billPhone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -45,6 +47,8 @@ export function TenantFormDialog({
   defaultRent: number;
   billId?: string;
   billVacant?: boolean;
+  billName?: string | null; // this month's recorded name (preferred for prefill)
+  billPhone?: string | null; // this month's recorded phone (preferred for prefill)
 }) {
   const qc = useQueryClient();
   const trashFee = useSettings().data?.trash_fee ?? 50000;
@@ -58,17 +62,18 @@ export function TenantFormDialog({
   const [uploading, setUploading] = React.useState(false);
   const [viewOpen, setViewOpen] = React.useState(false);
 
-  // reset form whenever the dialog opens for a (different) tenant
+  // reset form whenever the dialog opens for a (different) tenant — prefer this
+  // month's recorded name/phone (what the card shows) over the tenant record
   React.useEffect(() => {
     if (!open) return;
-    setName(tenant?.name ?? "");
-    setPhone(tenant?.phone ?? "");
+    setName(billName ?? tenant?.name ?? "");
+    setPhone(billPhone ?? tenant?.phone ?? "");
     setMoveIn(tenant?.move_in_date ?? "");
     setNotes(tenant?.notes ?? "");
     setPhotoUrl(tenant?.photo_url ?? null);
     setCameraAccess(tenant?.camera_access ?? false);
     setBasePrice(defaultRent);
-  }, [open, tenant, defaultRent]);
+  }, [open, tenant, defaultRent, billName, billPhone]);
 
   const save = useMutation({
     mutationFn: async () => {
