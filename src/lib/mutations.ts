@@ -17,10 +17,19 @@ export async function updateBillStatus(
   amountPaid: number | null = null,
 ) {
   const sb = getSupabaseBrowser();
-  // Setting a room to "Trống" also clears the tenant link + name snapshot.
+  // Setting a room to "Trống" wipes ALL of that month's info for the room
+  // (tenant, readings, fees) — only reading_old is kept so the meter stays
+  // continuous if a new tenant moves in later. The status log is preserved.
   const base: Record<string, unknown> =
     status === "vacant"
-      ? { payment_status: status, tenant_id: null, tenant_name: null }
+      ? {
+          payment_status: status,
+          tenant_id: null,
+          tenant_name: null,
+          reading_new: null,
+          room_fee: 0,
+          trash_fee: 0,
+        }
       : { payment_status: status };
 
   // Try with amount_paid; gracefully fall back if migration 0005 isn't applied yet.

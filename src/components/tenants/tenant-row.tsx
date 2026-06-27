@@ -11,11 +11,18 @@ import {
   Clock,
   LogOut,
   DoorClosed,
+  History,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StatusMenu } from "./status-menu";
 import { PaymentCardDialog } from "./payment-card";
 import { PaymentDialog } from "./payment-dialog";
@@ -23,7 +30,7 @@ import { TenantFormDialog } from "./tenant-form-dialog";
 import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
 import { qk, usePaymentLogs } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
-import { formatVND, formatNumber, formatDateTime, tenancyDuration } from "@/lib/format";
+import { formatVND, formatNumber, formatDateTime } from "@/lib/format";
 import type { Bill, MonthRow, PaymentStatus, Room, Tenant } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -34,21 +41,24 @@ export function TenantRow({
   tenant,
   month,
   buildingName,
+  tenancyLabel,
 }: {
   room: Room;
   bill: Bill | null;
   tenant: Tenant | null;
   month: MonthRow;
   buildingName: string;
+  tenancyLabel?: string | null;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [formOpen, setFormOpen] = React.useState(false);
   const [payOpen, setPayOpen] = React.useState(false);
+  const [logOpen, setLogOpen] = React.useState(false);
   const [payMethod, setPayMethod] = React.useState<"paid_cash" | "paid_transfer">("paid_transfer");
 
-  const logsQ = usePaymentLogs(open && bill ? bill.id : null);
+  const logsQ = usePaymentLogs(logOpen && bill ? bill.id : null);
 
   const statusMut = useMutation({
     mutationFn: (v: { status: PaymentStatus; amountPaid?: number | null }) =>
@@ -122,7 +132,6 @@ export function TenantRow({
   const vacant = bill?.payment_status === "vacant";
   const name = tenant?.name ?? bill?.tenant_name ?? null;
   const displayName = !vacant && name ? name : "(Phòng trống)";
-  const duration = vacant ? null : tenancyDuration(tenant?.move_in_date);
 
   function toggle() {
     setOpen((o) => !o);
@@ -207,7 +216,7 @@ export function TenantRow({
                   ) : (
                     <span>Chưa có SĐT</span>
                   )}
-                  {duration && <span>• {duration}</span>}
+                  {tenancyLabel && <span>• {tenancyLabel}</span>}
                 </div>
               )}
             </div>
@@ -233,7 +242,28 @@ export function TenantRow({
 
         <CollapsibleContent>
           <div className="border-t border-border bg-surface-2/40 p-4">
-            {bill ? (
+            {!bill ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-muted">Tháng này chưa có hoá đơn cho phòng.</p>
+                <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                  {tenant ? "Sửa khách" : "Thêm khách"}
+                </Button>
+              </div>
+            ) : vacant ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted">Phòng đang trống — chưa có khách thuê.</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                    <UserPlus className="h-4 w-4" />
+                    Thêm khách
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setLogOpen(true)}>
+                    <History className="h-4 w-4" />
+                    Lịch sử
+                  </Button>
+                </div>
+              </div>
+            ) : (
               <>
                 <div className="flex flex-col gap-1.5">
                   <BreakdownRow
@@ -249,6 +279,17 @@ export function TenantRow({
                       {formatVND(bill.total)}
                     </span>
                   </div>
+                  {underpaid && (
+                    <div className="flex items-center justify-between px-3 text-sm">
+                      <span className="text-muted">Đã thu</span>
+                      <span className="font-semibold">
+                        {formatVND(paidAmountOf(bill))}{" "}
+                        <span className="text-warning">
+                          • còn nợ {formatVND(total - paidAmountOf(bill))}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {bill.paid_at && (
@@ -286,38 +327,12 @@ export function TenantRow({
                       Thêm khách
                     </Button>
                   )}
+                  <Button size="sm" variant="ghost" onClick={() => setLogOpen(true)}>
+                    <History className="h-4 w-4" />
+                    Lịch sử
+                  </Button>
                 </div>
-
-                {logsQ.data && logsQ.data.length > 0 && (
-                  <div className="mt-4">
-                    <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                      Lịch sử trạng thái
-                    </div>
-                    <ul className="flex flex-col gap-1">
-                      {logsQ.data.slice(0, 5).map((log) => (
-                        <li key={log.id} className="flex items-center justify-between text-sm">
-                          <span>
-                            {log.old_status
-                              ? `${PAYMENT_STATUS[log.old_status].short} → `
-                              : ""}
-                            <span className="font-semibold">
-                              {PAYMENT_STATUS[log.new_status].short}
-                            </span>
-                          </span>
-                          <span className="text-muted">{formatDateTime(log.changed_at)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </>
-            ) : (
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted">Tháng này chưa có hoá đơn cho phòng.</p>
-                <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
-                  {tenant ? "Sửa khách" : "Thêm khách"}
-                </Button>
-              </div>
             )}
           </div>
         </CollapsibleContent>
@@ -355,6 +370,35 @@ export function TenantRow({
             setPayOpen(false);
           }}
         />
+      )}
+      {bill && (
+        <Dialog open={logOpen} onOpenChange={setLogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Lịch sử thanh toán — {room.code}</DialogTitle>
+            </DialogHeader>
+            {logsQ.isLoading ? (
+              <p className="text-sm text-muted">Đang tải…</p>
+            ) : logsQ.data && logsQ.data.length > 0 ? (
+              <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+                {logsQ.data.map((log) => (
+                  <li
+                    key={log.id}
+                    className="flex items-center justify-between gap-3 border-b border-border/60 pb-2 text-sm last:border-0"
+                  >
+                    <span>
+                      {log.old_status ? `${PAYMENT_STATUS[log.old_status].short} → ` : ""}
+                      <span className="font-semibold">{PAYMENT_STATUS[log.new_status].short}</span>
+                    </span>
+                    <span className="text-muted">{formatDateTime(log.changed_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">Chưa có thay đổi nào được ghi nhận.</p>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
     </Card>
   );

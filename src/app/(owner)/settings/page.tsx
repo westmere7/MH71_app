@@ -1,27 +1,23 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   Plus,
-  Save,
-  Building2,
   CalendarPlus,
-  Coins,
-  ChevronRight,
   Trash2,
   Zap,
   Camera,
   ExternalLink,
+  Copy,
   CheckCircle2,
   AlertCircle,
   Clock,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills } from "@/lib/queries";
-import { updateSettings, updateMonthMeta, createNextMonth, deleteMonth } from "@/lib/mutations";
+import { updateMonthMeta, createNextMonth, deleteMonth } from "@/lib/mutations";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +37,7 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { settings, selectedMonth, setSelectedMonthId } = useMonthCtx();
+  const { selectedMonth, setSelectedMonthId } = useMonthCtx();
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,23 +52,6 @@ export default function SettingsPage() {
           setSelectedMonthId(m.id);
         }}
       />
-
-      <GeneralSettings key={settings?.updated_at} qc={qc} settings={settings} />
-
-      <Link href="/gia">
-        <Card className="transition-colors hover:bg-surface-2">
-          <CardContent className="flex items-center gap-3 p-5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
-              <Coins className="h-5 w-5" />
-            </span>
-            <div className="flex-1">
-              <div className="font-bold">Thiết lập giá</div>
-              <div className="text-sm text-muted">Tiền phòng, tiền rác, đơn giá điện theo từng phòng</div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted" />
-          </CardContent>
-        </Card>
-      </Link>
 
       {selectedMonth && <MeterExpenseCard key={selectedMonth.id} qc={qc} month={selectedMonth} />}
 
@@ -196,50 +175,6 @@ function DeleteMonthButton({
   );
 }
 
-/* ----------------------------- general ----------------------------- */
-function GeneralSettings({
-  qc,
-  settings,
-}: {
-  qc: ReturnType<typeof useQueryClient>;
-  settings: ReturnType<typeof useMonthCtx>["settings"];
-}) {
-  const [name, setName] = React.useState(settings?.building_name ?? "MH71");
-  const [target, setTarget] = React.useState(settings?.collection_target_pct ?? 88);
-
-  const save = useMutation({
-    mutationFn: () => updateSettings({ building_name: name, collection_target_pct: target }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.settings });
-      toast.success("Đã lưu cài đặt chung");
-    },
-    onError: () => toast.error("Lưu thất bại."),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center gap-2">
-        <Building2 className="h-5 w-5 text-primary" />
-        <CardTitle>Cài đặt chung</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2">
-        <Field label="Tên nhà trọ">
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Mục tiêu thu (%)">
-          <Input type="number" value={target} onChange={(e) => setTarget(Number(e.target.value))} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>
-            {save.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-            Lưu cài đặt
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 /* --------------------- electricity & other costs --------------------- */
 function MeterExpenseCard({
   qc,
@@ -258,10 +193,18 @@ function MeterExpenseCard({
     mutationFn: () => updateMonthMeta(month.id, { other_fees: otherFees }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.months });
-      toast.success("Đã lưu tổng chi");
+      toast.success("Đã lưu chi phí khác");
     },
     onError: () => toast.error("Lưu thất bại."),
   });
+
+  function copyMeterLink() {
+    const url = `${window.location.origin}/dien`;
+    navigator.clipboard
+      .writeText(`Trang ghi số điện MH71: ${url}\nMật khẩu: mh71`)
+      .then(() => toast.success("Đã sao chép link + mật khẩu"))
+      .catch(() => toast.error("Không sao chép được."));
+  }
 
   return (
     <Card>
@@ -327,47 +270,45 @@ function MeterExpenseCard({
         </div>
 
         {/* link to meter page */}
-        <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border p-4">
           <span className="text-sm font-semibold">Trang ghi điện cho quản lý</span>
           <p className="text-sm text-muted">
             Gửi đường link này cho người quản lý tại chỗ để nhập số điện. Mật khẩu trang:{" "}
             <span className="font-bold text-foreground">mh71</span>
           </p>
-          <a href="/dien" target="_blank" rel="noopener noreferrer" className="self-start">
-            <Button variant="outline">
-              <ExternalLink className="h-5 w-5" />
-              Mở trang ghi điện
-            </Button>
-          </a>
-        </div>
-
-        {/* total expenses */}
-        <Field label="Tổng chi tháng (đ) — EVN, rác, internet… (Lợi nhuận = Tổng thu − Tổng chi)">
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              value={otherFees}
-              onChange={(e) => setOtherFees(Number(e.target.value))}
-            />
-            <Button variant="outline" onClick={() => saveFees.mutate()} disabled={saveFees.isPending}>
-              {saveFees.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Lưu"}
+          <div className="flex flex-wrap gap-2">
+            <a href="/dien" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline">
+                <ExternalLink className="h-5 w-5" />
+                Mở trang ghi điện
+              </Button>
+            </a>
+            <Button variant="outline" onClick={copyMeterLink}>
+              <Copy className="h-5 w-5" />
+              Copy
             </Button>
           </div>
-        </Field>
-        <p className="-mt-2 text-sm text-muted">
-          “Thu tiền” tự động cập nhật theo số phòng đã thanh toán — không cần chỉnh tay.
-        </p>
+        </div>
+
+        {/* other expenses — single VND box, saved on blur */}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="other-fees">Chi phí khác trong tháng (đ)</Label>
+          <Input
+            id="other-fees"
+            inputMode="numeric"
+            value={otherFees ? formatNumber(otherFees) : ""}
+            onChange={(e) => setOtherFees(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
+            onBlur={() => {
+              if (otherFees !== month.other_fees) saveFees.mutate();
+            }}
+            placeholder="0"
+          />
+          <p className="text-sm text-muted">
+            EVN, rác, internet… — Lợi nhuận = Tổng thu − Chi phí khác. “Thu tiền” tự động theo số
+            phòng đã thanh toán.
+          </p>
+        </div>
       </CardContent>
     </Card>
-  );
-}
-
-/* ------------------------------ helpers ----------------------------- */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label>{label}</Label>
-      {children}
-    </div>
   );
 }
