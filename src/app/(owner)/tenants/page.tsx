@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Search } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { useRooms, useCurrentTenants, useBills } from "@/lib/queries";
+import { useRooms, useCurrentTenants, useAllTenants, useBills } from "@/lib/queries";
 import { TenantRow } from "@/components/tenants/tenant-row";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,7 @@ export default function TenantsPage() {
   const { selectedMonth, settings, isLoading } = useMonthCtx();
   const roomsQ = useRooms();
   const tenantsQ = useCurrentTenants();
+  const allTenantsQ = useAllTenants();
   const billsQ = useBills(selectedMonth?.id ?? null);
 
   const [search, setSearch] = React.useState("");
@@ -73,6 +74,14 @@ export default function TenantsPage() {
     for (const b of billsQ.data ?? []) m.set(b.room_id, b);
     return m;
   }, [billsQ.data]);
+
+  // every tenant by id (incl. moved-out) — the row's tenant/photo follow the
+  // bill's recorded person, not whoever currently occupies the room
+  const tenantById = React.useMemo(() => {
+    const m = new Map<string, Tenant>();
+    for (const t of allTenantsQ.data ?? []) m.set(t.id, t);
+    return m;
+  }, [allTenantsQ.data]);
 
   const tenantByRoom = React.useMemo(() => {
     const m = new Map<string, Tenant>();
@@ -159,19 +168,29 @@ export default function TenantsPage() {
         </Card>
       ) : (
         <div ref={listRef} className="flex flex-col gap-2.5">
-          {rows.map((room) => (
+          {rows.map((room) => {
+            const bill = billByRoom.get(room.id) ?? null;
+            // the row's tenant is the person on THIS month's bill (by tenant_id,
+            // even if since moved out); fall back to the room's current tenant
+            const billTenant =
+              (bill?.tenant_id ? tenantById.get(bill.tenant_id) : undefined) ??
+              tenantByRoom.get(room.id) ??
+              null;
+            return (
             <TenantRow
               key={room.id}
               room={room}
-              bill={billByRoom.get(room.id) ?? null}
-              tenant={tenantByRoom.get(room.id) ?? null}
+              bill={bill}
+              tenant={billTenant}
+              photoUrl={billTenant?.photo_url ?? null}
               month={selectedMonth}
               buildingName={settings?.building_name ?? "MH71"}
               open={openId === room.id}
               onOpenChange={(o) => setOpenId(o ? room.id : null)}
               dimmed={openId !== null && openId !== room.id}
             />
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

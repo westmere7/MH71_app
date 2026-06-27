@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Clock,
   ALargeSmall,
+  Lock,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
@@ -40,7 +41,7 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { selectedMonth, months, setSelectedMonthId } = useMonthCtx();
+  const { selectedMonth, months, selectedLocked, setSelectedMonthId } = useMonthCtx();
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,6 +51,7 @@ export default function SettingsPage() {
         qc={qc}
         month={selectedMonth}
         months={months}
+        locked={selectedLocked}
         onCreated={(m) => {
           qc.invalidateQueries({ queryKey: qk.months });
           qc.invalidateQueries({ queryKey: ["bills"] });
@@ -57,7 +59,16 @@ export default function SettingsPage() {
         }}
       />
 
-      {selectedMonth && <MeterExpenseCard key={selectedMonth.id} qc={qc} month={selectedMonth} />}
+      {selectedMonth && (
+        <MeterExpenseCard
+          key={selectedMonth.id}
+          qc={qc}
+          month={selectedMonth}
+          locked={selectedLocked}
+        />
+      )}
+
+      <LockCard qc={qc} />
 
       <DisplayCard qc={qc} />
 
@@ -91,11 +102,13 @@ function AddRemoveMonthCard({
   qc,
   month,
   months,
+  locked,
   onCreated,
 }: {
   qc: ReturnType<typeof useQueryClient>;
   month: MonthRow | null;
   months: MonthRow[];
+  locked: boolean;
   onCreated: (m: MonthRow) => void;
 }) {
   const next = nextPeriod(months);
@@ -133,7 +146,14 @@ function AddRemoveMonthCard({
         {month && (
           <div className="mt-1 flex flex-col gap-2 border-t border-border pt-4">
             <span className="text-sm font-semibold text-muted">Khu vực nguy hiểm</span>
-            <DeleteMonthButton qc={qc} month={month} />
+            {locked ? (
+              <p className="flex items-center gap-2 text-sm text-muted">
+                <Lock className="h-4 w-4 shrink-0" />
+                {monthLabel(month.year, month.month)} đã qua nên đã khoá — không thể xoá.
+              </p>
+            ) : (
+              <DeleteMonthButton qc={qc} month={month} />
+            )}
           </div>
         )}
       </CardContent>
@@ -195,6 +215,60 @@ function DeleteMonthButton({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* ------------------------------ lock -------------------------------- */
+function LockCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const settings = useSettings().data;
+  const on = settings?.lock_past_months ?? false;
+
+  const toggle = useMutation({
+    mutationFn: (next: boolean) => updateSettings({ lock_past_months: next }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success("Đã lưu");
+    },
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0009."),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center gap-2">
+        <Lock className="h-5 w-5 text-primary" />
+        <CardTitle>Khoá tháng đã qua</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <label className="flex cursor-pointer items-start justify-between gap-4">
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-semibold">Khoá các tháng đã qua</span>
+            <span className="text-sm text-muted">
+              Khi bật, các tháng đã qua (trước tháng hiện tại) sẽ không thể sửa số liệu, đổi trạng
+              thái, sửa giá hay xoá. Tháng hiện tại vẫn sửa bình thường. Bảo vệ số liệu cũ khỏi bị
+              thay đổi nhầm.
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            onClick={() => toggle.mutate(!on)}
+            disabled={toggle.isPending}
+            className={cn(
+              "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+              on ? "bg-primary" : "border border-border bg-surface-2",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                on ? "translate-x-[22px]" : "translate-x-0.5",
+              )}
+            />
+          </button>
+        </label>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -263,9 +337,11 @@ function DisplayCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 function MeterExpenseCard({
   qc,
   month,
+  locked,
 }: {
   qc: ReturnType<typeof useQueryClient>;
   month: MonthRow;
+  locked: boolean;
 }) {
   const billsQ = useBills(month.id);
   const loading = billsQ.isLoading;
@@ -354,15 +430,18 @@ function MeterExpenseCard({
           <Input
             id="other-fees"
             inputMode="numeric"
+            disabled={locked}
             value={otherFees ? formatNumber(otherFees) : ""}
             onChange={(e) => setOtherFees(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
             onBlur={() => {
-              if (otherFees !== month.other_fees) saveFees.mutate();
+              if (!locked && otherFees !== month.other_fees) saveFees.mutate();
             }}
             placeholder="0"
           />
           <p className="text-sm text-muted">
-            Các chi phí thanh toán bên ngoài khác như internet, dịch vụ, v.v.
+            {locked
+              ? "Tháng này đã khoá — không thể sửa chi phí."
+              : "Các chi phí thanh toán bên ngoài khác như internet, dịch vụ, v.v."}
           </p>
         </div>
 

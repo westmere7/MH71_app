@@ -92,11 +92,11 @@ export function TenantFormDialog({
       }
       // adding a tenant to an empty room turns the bill back on (unpaid + fees)
       if (reactivating && saved) {
-        await reactivateBill(billId!, basePrice, trashFee, saved.id, input.name);
+        await reactivateBill(billId!, basePrice, trashFee, saved.id, input.name, input.phone);
       } else if (billId && saved) {
-        // editing an existing tenant: snapshot the name onto THIS month's bill
-        // only — past/future months keep their own record
-        await updateBillTenant(billId, saved.id, input.name);
+        // editing an existing tenant: snapshot the name + phone onto THIS month's
+        // bill only — past/future months keep their own record
+        await updateBillTenant(billId, saved.id, input.name, input.phone);
       }
     },
     onSuccess: () => {

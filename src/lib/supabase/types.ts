@@ -18,6 +18,7 @@ export interface Settings {
   trash_fee: number;
   collection_target_pct: number;
   ui_scale: number; // interface + text scale; 1 = default (migration 0007)
+  lock_past_months: boolean; // lock every month except the newest (migration 0009)
   updated_at: string;
 }
 
@@ -69,6 +70,7 @@ export interface Bill {
   room_id: string;
   tenant_id: string | null;
   tenant_name: string | null;
+  tenant_phone: string | null; // month-specific phone snapshot (migration 0008)
   reading_old: number;
   reading_new: number | null;
   units: number;

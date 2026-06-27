@@ -54,40 +54,49 @@ export async function reactivateBill(
   trashFee: number,
   tenantId: string,
   tenantName: string,
+  tenantPhone: string | null,
 ) {
   const sb = getSupabaseBrowser();
-  return unwrap(
-    await sb
-      .from("bills")
-      .update({
-        payment_status: "unpaid",
-        room_fee: roomFee,
-        trash_fee: trashFee,
-        tenant_id: tenantId,
-        tenant_name: tenantName,
-      })
-      .eq("id", billId)
-      .select()
-      .single(),
-  );
+  const base = {
+    payment_status: "unpaid" as PaymentStatus,
+    room_fee: roomFee,
+    trash_fee: trashFee,
+    tenant_id: tenantId,
+    tenant_name: tenantName,
+  };
+  // include the phone snapshot; gracefully fall back if migration 0008 is missing
+  let res = await sb
+    .from("bills")
+    .update({ ...base, tenant_phone: tenantPhone })
+    .eq("id", billId)
+    .select()
+    .single();
+  if (res.error && /tenant_phone/i.test(res.error.message ?? "")) {
+    res = await sb.from("bills").update(base).eq("id", billId).select().single();
+  }
+  return unwrap(res);
 }
 
-/** Sync ONLY the given month's bill snapshot (name/id) when a tenant is edited.
- *  Other months keep their own snapshot — edits never propagate sideways/back. */
+/** Sync ONLY the given month's bill snapshot (name/phone/id) when a tenant is
+ *  edited. Other months keep their own snapshot — edits never propagate back. */
 export async function updateBillTenant(
   billId: string,
   tenantId: string | null,
   tenantName: string | null,
+  tenantPhone: string | null,
 ) {
   const sb = getSupabaseBrowser();
-  return unwrap(
-    await sb
-      .from("bills")
-      .update({ tenant_id: tenantId, tenant_name: tenantName })
-      .eq("id", billId)
-      .select()
-      .single(),
-  );
+  const base = { tenant_id: tenantId, tenant_name: tenantName };
+  let res = await sb
+    .from("bills")
+    .update({ ...base, tenant_phone: tenantPhone })
+    .eq("id", billId)
+    .select()
+    .single();
+  if (res.error && /tenant_phone/i.test(res.error.message ?? "")) {
+    res = await sb.from("bills").update(base).eq("id", billId).select().single();
+  }
+  return unwrap(res);
 }
 
 export interface TenantInput {
@@ -172,6 +181,44 @@ export async function savePricing(rooms: PricingRoom[], trashFee: number, electr
     .update({ trash_fee: trashFee, electricity_rate: electricityRate })
     .eq("id", 1);
   if (error) throw error;
+}
+
+/**
+ * Month-specific pricing: saves the price list (rooms + settings) AND stamps the
+ * prices onto the GIVEN month's bills only. Past months (other bills) are never
+ * touched, so historical financials stay intact. Vacant bills keep their 0 fees
+ * (only the electricity rate is refreshed).
+ */
+export async function saveMonthPricing(
+  monthId: string,
+  rooms: PricingRoom[],
+  trashFee: number,
+  electricityRate: number,
+) {
+  const sb = getSupabaseBrowser();
+  await savePricing(rooms, trashFee, electricityRate);
+
+  const { data: bills } = await sb
+    .from("bills")
+    .select("id, room_id, payment_status")
+    .eq("month_id", monthId);
+  const byRoom = new Map(rooms.map((r) => [r.id, r]));
+  await Promise.all(
+    (bills ?? []).map((b: { id: string; room_id: string; payment_status: PaymentStatus }) => {
+      const pr = byRoom.get(b.room_id);
+      if (!pr) return Promise.resolve(undefined);
+      const rate = pr.default_rate ?? electricityRate;
+      const patch =
+        b.payment_status === "vacant"
+          ? { electricity_rate: rate }
+          : {
+              room_fee: pr.default_rent,
+              trash_fee: pr.default_trash ?? trashFee,
+              electricity_rate: rate,
+            };
+      return sb.from("bills").update(patch).eq("id", b.id);
+    }),
+  );
 }
 
 // ---- Month metadata ----
@@ -269,6 +316,7 @@ export async function createNextMonth(): Promise<MonthRow> {
         room_id: r.id,
         tenant_id: tenant?.id ?? null,
         tenant_name: tenant?.name ?? null,
+        tenant_phone: tenant?.phone ?? null,
         reading_old: 0,
         reading_new: null,
         electricity_rate: r.default_rate ?? s.electricity_rate,
@@ -287,6 +335,7 @@ export async function createNextMonth(): Promise<MonthRow> {
       room_id: r.id,
       tenant_id: prev.tenant_id,
       tenant_name: prev.tenant_name,
+      tenant_phone: prev.tenant_phone,
       reading_old: prev.reading_new ?? prev.reading_old,
       reading_new: null,
       electricity_rate: prev.electricity_rate,
@@ -297,7 +346,12 @@ export async function createNextMonth(): Promise<MonthRow> {
   });
 
   if (rows.length) {
-    const { error } = await sb.from("bills").insert(rows);
+    let { error } = await sb.from("bills").insert(rows);
+    // gracefully fall back if migration 0008 (tenant_phone) isn't applied yet
+    if (error && /tenant_phone/i.test(error.message ?? "")) {
+      const stripped = rows.map(({ tenant_phone, ...rest }) => rest);
+      ({ error } = await sb.from("bills").insert(stripped));
+    }
     if (error) throw error;
   }
 

@@ -4,11 +4,13 @@ import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Coins, Loader2, Save, Undo2, Lock } from "lucide-react";
 import { useRooms, useSettings, qk } from "@/lib/queries";
-import { savePricing, type PricingRoom } from "@/lib/mutations";
+import { useMonthCtx } from "@/components/month-provider";
+import { saveMonthPricing, type PricingRoom } from "@/lib/mutations";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { monthLabel } from "@/lib/format";
 import type { Room, Settings } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -39,6 +41,7 @@ export default function PricingPage() {
   const qc = useQueryClient();
   const roomsQ = useRooms();
   const settingsQ = useSettings();
+  const { selectedMonth, selectedLocked } = useMonthCtx();
   const rooms = React.useMemo(() => roomsQ.data ?? [], [roomsQ.data]);
   const settings = settingsQ.data;
 
@@ -57,18 +60,20 @@ export default function PricingPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!draft) return;
+      if (!draft || !selectedMonth) return;
       const payload: PricingRoom[] = rooms.map((r) => ({
         id: r.id,
         default_rent: draft.base[r.id],
         default_trash: draft.uniformTrash ? null : draft.trashPer[r.id],
         default_rate: draft.uniformRate ? null : draft.ratePer[r.id],
       }));
-      await savePricing(payload, draft.trashAll, draft.rateAll);
+      // apply to the SELECTED month's bills only — past months stay intact
+      await saveMonthPricing(selectedMonth.id, payload, draft.trashAll, draft.rateAll);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.rooms });
       qc.invalidateQueries({ queryKey: qk.settings });
+      qc.invalidateQueries({ queryKey: ["bills"] });
       toast.success("Đã lưu thiết lập giá");
     },
     onError: () =>
@@ -102,11 +107,25 @@ export default function PricingPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-24">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Coins className="h-6 w-6 text-primary" />
         <h1 className="text-xl font-extrabold tracking-tight">Thiết lập giá</h1>
+        {selectedMonth && (
+          <span className="text-sm font-semibold text-muted">
+            — áp dụng cho {monthLabel(selectedMonth.year, selectedMonth.month)}
+          </span>
+        )}
       </div>
 
+      {selectedLocked && (
+        <div className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning-surface px-4 py-3 text-sm font-semibold text-warning">
+          <Lock className="h-5 w-5 shrink-0" />
+          Tháng này đã qua nên đã khoá — không thể sửa giá.
+        </div>
+      )}
+
+      <div className={cn(selectedLocked && "pointer-events-none select-none opacity-60")}>
+        <div className="flex flex-col gap-5">
       {/* shared toggles */}
       <Card>
         <CardContent className="grid gap-5 p-5 sm:grid-cols-2">
@@ -180,6 +199,8 @@ export default function PricingPage() {
           </div>
         </CardContent>
       </Card>
+        </div>
+      </div>
 
       {/* sticky action bar */}
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 p-3 backdrop-blur md:left-60">
@@ -187,12 +208,12 @@ export default function PricingPage() {
           <Button
             variant="outline"
             onClick={() => settings && setDraft(seed(rooms, settings))}
-            disabled={save.isPending}
+            disabled={save.isPending || selectedLocked}
           >
             <Undo2 className="h-5 w-5" />
             Hoàn tác
           </Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || selectedLocked}>
             {save.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
             Lưu thay đổi
           </Button>

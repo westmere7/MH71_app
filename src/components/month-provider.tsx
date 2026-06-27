@@ -15,6 +15,8 @@ interface MonthContextValue {
   hasPrev: boolean;
   hasNext: boolean;
   isLoading: boolean;
+  latestMonthId: string | null; // newest month — the only editable one when locking is on
+  selectedLocked: boolean; // selected month is a passed (locked) month
 }
 
 const MonthContext = React.createContext<MonthContextValue | null>(null);
@@ -47,6 +49,19 @@ export function MonthProvider({ children }: { children: React.ReactNode }) {
   const hasPrev = index >= 0 && index < months.length - 1;
   const hasNext = index > 0;
 
+  // locking: a month is locked when the setting is on (default on) AND it has
+  // truly passed — i.e. it's before the current calendar month. The current
+  // month and any future months stay editable, and the newest month is always
+  // editable (so there's always a working month even if it's behind).
+  const latestMonthId = months.length ? months[0].id : null;
+  const lockOn = settingsQ.data?.lock_past_months ?? false;
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const isPast = (m: MonthRow) => m.year < curY || (m.year === curY && m.month < curM);
+  const selectedLocked =
+    lockOn && !!selectedMonth && selectedMonth.id !== latestMonthId && isPast(selectedMonth);
+
   const prevMonth = React.useCallback(() => {
     if (hasPrev) setSelectedMonthId(months[index + 1].id);
   }, [hasPrev, index, months, setSelectedMonthId]);
@@ -65,6 +80,8 @@ export function MonthProvider({ children }: { children: React.ReactNode }) {
     hasPrev,
     hasNext,
     isLoading: monthsQ.isLoading || settingsQ.isLoading,
+    latestMonthId,
+    selectedLocked,
   };
 
   return <MonthContext.Provider value={value}>{children}</MonthContext.Provider>;

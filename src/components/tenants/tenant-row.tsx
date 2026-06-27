@@ -28,6 +28,7 @@ import { PaymentCardDialog } from "./payment-card";
 import { PaymentDialog } from "./payment-dialog";
 import { TenantFormDialog } from "./tenant-form-dialog";
 import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
+import { useMonthCtx } from "@/components/month-provider";
 import { qk, usePaymentLogs } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
 import type { StatusChoice } from "@/lib/constants";
@@ -40,6 +41,7 @@ export function TenantRow({
   room,
   bill,
   tenant,
+  photoUrl,
   month,
   buildingName,
   open,
@@ -49,6 +51,7 @@ export function TenantRow({
   room: Room;
   bill: Bill | null;
   tenant: Tenant | null;
+  photoUrl: string | null; // photo of the bill's tenant (tied to the person)
   month: MonthRow;
   buildingName: string;
   open: boolean;
@@ -56,6 +59,7 @@ export function TenantRow({
   dimmed?: boolean;
 }) {
   const qc = useQueryClient();
+  const { selectedLocked: locked } = useMonthCtx();
   const [cardOpen, setCardOpen] = React.useState(false);
   const [formOpen, setFormOpen] = React.useState(false);
   const [payOpen, setPayOpen] = React.useState(false);
@@ -138,6 +142,7 @@ export function TenantRow({
   // the month's own record is authoritative; fall back to the live tenant only
   // for legacy bills that were imported without a name snapshot
   const name = bill?.tenant_name ?? tenant?.name ?? null;
+  const phone = bill?.tenant_phone ?? tenant?.phone ?? null;
   const displayName = !vacant && name ? name : "(Phòng trống)";
 
   function toggle() {
@@ -170,7 +175,7 @@ export function TenantRow({
       <StatusMenu
         status={shownStatus}
         onChoose={onChoose}
-        disabled={vacant || statusMut.isPending || checkoutMut.isPending}
+        disabled={locked || vacant || statusMut.isPending || checkoutMut.isPending}
       />
     </div>
   ) : (
@@ -208,9 +213,10 @@ export function TenantRow({
             <button
               type="button"
               aria-label="Sửa thông tin"
+              disabled={locked}
               onClick={(e) => {
                 e.stopPropagation();
-                setFormOpen(true);
+                if (!locked) setFormOpen(true);
               }}
               className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -219,7 +225,7 @@ export function TenantRow({
                   <Plus className="h-5 w-5" />
                 </span>
               ) : (
-                <Avatar name={name} photoUrl={tenant?.photo_url} size={40} />
+                <Avatar name={name} photoUrl={photoUrl} size={40} />
               )}
             </button>
             {/* name + phone (occupied) — or a single hint line when empty */}
@@ -237,13 +243,13 @@ export function TenantRow({
                     )}
                   </div>
                   <div className="mt-0.5 truncate text-sm text-muted">
-                    {tenant?.phone ? (
+                    {phone ? (
                       <a
-                        href={`tel:${tenant.phone}`}
+                        href={`tel:${phone}`}
                         onClick={(e) => e.stopPropagation()}
                         className="hover:underline"
                       >
-                        {tenant.phone}
+                        {phone}
                       </a>
                     ) : (
                       "Chưa có SĐT"
@@ -273,7 +279,7 @@ export function TenantRow({
             {!bill ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted">Tháng này chưa có hoá đơn cho phòng.</p>
-                <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
                   {tenant ? "Sửa người thuê" : "Thêm người thuê"}
                 </Button>
               </div>
@@ -301,7 +307,7 @@ export function TenantRow({
                   Phòng đang trống — thêm người thuê để thu tiền phòng &amp; rác.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                  <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
                     <UserPlus className="h-4 w-4" />
                     Thêm người thuê
                   </Button>
@@ -359,7 +365,7 @@ export function TenantRow({
                   </Button>
                   {tenant ? (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                      <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
                         <UserPen className="h-4 w-4" />
                         Sửa thông tin
                       </Button>
@@ -367,7 +373,7 @@ export function TenantRow({
                         size="sm"
                         variant="outline"
                         onClick={checkout}
-                        disabled={checkoutMut.isPending}
+                        disabled={checkoutMut.isPending || locked}
                         className="text-danger"
                       >
                         <LogOut className="h-4 w-4" />
@@ -375,7 +381,7 @@ export function TenantRow({
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
+                    <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
                       <UserPlus className="h-4 w-4" />
                       Thêm người thuê
                     </Button>

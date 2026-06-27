@@ -73,6 +73,19 @@ export function useCurrentTenants() {
   });
 }
 
+/** every tenant (incl. moved-out) — used to resolve a bill's tenant photo by id */
+export function useAllTenants() {
+  return useQuery({
+    queryKey: ["tenants", "all"] as const,
+    queryFn: async (): Promise<Tenant[]> => {
+      const sb = getSupabaseBrowser();
+      const { data, error } = await sb.from("tenants").select("*");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useBills(monthId: string | null) {
   return useQuery({
     queryKey: qk.bills(monthId),
