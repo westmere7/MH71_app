@@ -1,0 +1,11 @@
+# Netlify deployment for MH71 (Next.js App Router).
+# The official Next runtime handles SSR pages, route handlers (/api/meter/*),
+# and middleware automatically.
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

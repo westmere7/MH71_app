@@ -1,0 +1,61 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Building2 } from "lucide-react";
+import { NAV_ITEMS } from "./nav-items";
+import { SignOutButton } from "./sign-out-button";
+import { cn } from "@/lib/utils";
+
+export function Sidebar({ userEmail }: { userEmail?: string }) {
+  const pathname = usePathname();
+  return (
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface p-4 md:flex">
+      <Link href="/" className="mb-6 flex items-center gap-3 px-2">
+        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-brand-foreground">
+          <Building2 className="h-6 w-6" />
+        </span>
+        <div className="leading-tight">
+          <div className="text-xl font-extrabold">MH71</div>
+          <div className="text-xs text-muted">Quản lý nhà trọ</div>
+        </div>
+      </Link>
+
+      <nav className="flex flex-col gap-1.5">
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-surface-2",
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-1 pt-4">
+        {userEmail && (
+          <div className="truncate px-3 pb-1 text-xs text-muted" title={userEmail}>
+            {userEmail}
+          </div>
+        )}
+        <SignOutButton />
+      </div>
+    </aside>
+  );
+}
+
+export function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(href + "/");
+}
