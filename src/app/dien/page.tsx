@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Lock,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -136,19 +137,18 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
 }
 
 /* ------------------------------ form ------------------------------- */
+type RowState = "empty" | "invalid" | "ok";
+
 function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   const [submitting, setSubmitting] = React.useState(false);
-  // rooms whose entered reading is invalid (smaller than số cũ) — block submit
-  const [blocked, setBlocked] = React.useState<Record<string, boolean>>({});
+  // per-room input state: must all be "ok" (filled + valid) before submitting
+  const [states, setStates] = React.useState<Record<string, RowState>>({});
   const [photoUrl, setPhotoUrl] = React.useState<string | null>(
     data.month?.meter_note_photo_url ?? null,
   );
 
-  const setRoomBlocked = React.useCallback((id: string, isBlocked: boolean) => {
-    setBlocked((prev) => {
-      if (!!prev[id] === isBlocked) return prev;
-      return { ...prev, [id]: isBlocked };
-    });
+  const setRowState = React.useCallback((id: string, state: RowState) => {
+    setStates((prev) => (prev[id] === state ? prev : { ...prev, [id]: state }));
   }, []);
 
   if (!data.month) {
@@ -161,11 +161,22 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
     );
   }
   const month = data.month;
-  const done = month.meter_status === "xong";
+  // "xong" = the manager already finished this month → editing now revises figures
+  const revising = month.meter_status === "xong";
 
-  const hasBlocked = Object.values(blocked).some(Boolean);
+  const rowStates = data.rows.map((r) => states[r.id] ?? (r.reading_new != null ? "ok" : "empty"));
+  const anyInvalid = rowStates.some((s) => s === "invalid");
+  const anyEmpty = rowStates.some((s) => s === "empty");
   const hasPhoto = !!photoUrl;
-  const canSubmit = !submitting && hasPhoto && !hasBlocked;
+  const canSubmit = !submitting && hasPhoto && !anyInvalid && !anyEmpty;
+
+  const blockMsg = anyInvalid
+    ? "Có phòng nhập số mới nhỏ hơn số cũ — sửa lại trước khi hoàn tất."
+    : anyEmpty
+      ? "Còn phòng chưa nhập số điện mới — phải nhập đủ tất cả các phòng."
+      : !hasPhoto
+        ? "Cần tải ảnh giấy ghi số điện trước khi hoàn tất."
+        : null;
 
   async function submit() {
     if (!canSubmit) return;
@@ -177,7 +188,7 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
     });
     setSubmitting(false);
     if (res.ok) {
-      toast.success("Đã hoàn tất ghi điện. Cảm ơn!");
+      toast.success(revising ? "Đã cập nhật số điện." : "Đã hoàn tất ghi điện. Cảm ơn!");
       reload();
     } else {
       toast.error("Không gửi được, thử lại.");
@@ -200,15 +211,19 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
         </div>
       </header>
 
-      {done && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl bg-success-surface px-4 py-3 font-semibold text-success">
-          <CheckCircle2 className="h-5 w-5" /> Tháng này đã ghi xong. Bạn vẫn có thể sửa lại.
+      {revising && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning-surface px-4 py-3 font-semibold text-warning">
+          <Pencil className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>
+            Tháng này ĐÃ ghi xong. Sửa số bên dưới sẽ{" "}
+            <span className="underline">cập nhật số điện hiện tại</span>, không tạo đợt ghi mới.
+          </span>
         </div>
       )}
 
       <div className="flex flex-col gap-3">
         {data.rows.map((row) => (
-          <MeterRow key={row.id} row={row} onBlockingChange={setRoomBlocked} />
+          <MeterRow key={row.id} row={row} revising={revising} onStateChange={setRowState} />
         ))}
       </div>
 
@@ -216,21 +231,27 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-4 backdrop-blur">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
-          {!canSubmit && !submitting && (
+          {blockMsg && !submitting && (
             <p className="flex items-center justify-center gap-1.5 text-center text-sm font-semibold text-danger">
               <TriangleAlert className="h-4 w-4 shrink-0" />
-              {hasBlocked
-                ? "Có phòng nhập số mới nhỏ hơn số cũ — sửa lại trước khi hoàn tất."
-                : "Cần tải ảnh giấy ghi số điện trước khi hoàn tất."}
+              {blockMsg}
             </p>
           )}
-          <Button onClick={submit} disabled={!canSubmit} size="lg" className="w-full">
+          <Button
+            onClick={submit}
+            disabled={!canSubmit}
+            size="lg"
+            className="w-full"
+            variant={revising ? "outline" : "primary"}
+          >
             {submitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
+            ) : revising ? (
+              <Pencil className="h-5 w-5" />
             ) : (
               <CheckCircle2 className="h-5 w-5" />
             )}
-            Hoàn tất ghi điện
+            {revising ? "Cập nhật số điện" : "Hoàn tất ghi điện"}
           </Button>
         </div>
       </div>
@@ -240,10 +261,12 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
 
 function MeterRow({
   row,
-  onBlockingChange,
+  revising,
+  onStateChange,
 }: {
   row: Row;
-  onBlockingChange: (id: string, blocked: boolean) => void;
+  revising: boolean;
+  onStateChange: (id: string, state: RowState) => void;
 }) {
   const [value, setValue] = React.useState<string>(
     row.reading_new != null ? String(row.reading_new) : "",
@@ -258,6 +281,7 @@ function MeterRow({
   // a "blocking" row is a typed-in reading that is invalid (NaN or below số cũ).
   // these can't be saved and prevent the whole month from being submitted.
   const blocking = value !== "" && (!valid || num! < row.reading_old);
+  const rowState: RowState = blocking ? "invalid" : value === "" ? "empty" : "ok";
 
   let warn: { tone: "danger" | "warning" | "info"; msg: string } | null = null;
   if (valid && num! < row.reading_old) {
@@ -269,8 +293,8 @@ function MeterRow({
   }
 
   React.useEffect(() => {
-    onBlockingChange(row.id, blocking);
-  }, [blocking, row.id, onBlockingChange]);
+    onStateChange(row.id, rowState);
+  }, [rowState, row.id, onStateChange]);
 
   async function save() {
     // never persist an invalid reading; leave it flagged for the manager to fix
@@ -288,7 +312,7 @@ function MeterRow({
   }
 
   return (
-    <Card className="p-4">
+    <Card className={cn("p-4", rowState === "empty" && "border-danger/30")}>
       <div className="flex items-center gap-4">
         <div className="flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-surface-2">
           <span className="text-lg font-extrabold">{row.code}</span>
@@ -298,6 +322,12 @@ function MeterRow({
           <div className="text-sm">
             Số cũ: <span className="font-bold">{formatNumber(row.reading_old)}</span>
           </div>
+          {revising && row.reading_new != null && (
+            <div className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-warning">
+              <Pencil className="h-3 w-3" />
+              Đang sửa — đã nhập trước đó: {formatNumber(row.reading_new)}
+            </div>
+          )}
         </div>
         <div className="w-32 shrink-0">
           <Input
@@ -313,6 +343,7 @@ function MeterRow({
             className={cn(
               "text-center text-lg font-bold",
               warn?.tone === "danger" && "border-danger",
+              warn?.tone !== "danger" && revising && "border-warning bg-warning-surface/30",
             )}
           />
         </div>

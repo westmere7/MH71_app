@@ -37,7 +37,7 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const { selectedMonth, setSelectedMonthId } = useMonthCtx();
+  const { selectedMonth, months, setSelectedMonthId } = useMonthCtx();
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,6 +46,7 @@ export default function SettingsPage() {
       <AddRemoveMonthCard
         qc={qc}
         month={selectedMonth}
+        months={months}
         onCreated={(m) => {
           qc.invalidateQueries({ queryKey: qk.months });
           qc.invalidateQueries({ queryKey: ["bills"] });
@@ -67,16 +68,33 @@ export default function SettingsPage() {
   );
 }
 
+/** Period that "Tạo tháng mới" will create next, based on the latest month. */
+function nextPeriod(months: MonthRow[]): { year: number; month: number } {
+  // months are sorted newest -> oldest, so months[0] is the latest
+  const latest = months[0];
+  if (!latest) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+  return latest.month === 12
+    ? { year: latest.year + 1, month: 1 }
+    : { year: latest.year, month: latest.month + 1 };
+}
+
 /* ------------------------- add / remove month ------------------------- */
 function AddRemoveMonthCard({
   qc,
   month,
+  months,
   onCreated,
 }: {
   qc: ReturnType<typeof useQueryClient>;
   month: MonthRow | null;
+  months: MonthRow[];
   onCreated: (m: MonthRow) => void;
 }) {
+  const next = nextPeriod(months);
+  const nextLabel = monthLabel(next.year, next.month);
   const create = useMutation({
     mutationFn: createNextMonth,
     onSuccess: (m) => {
@@ -97,14 +115,18 @@ function AddRemoveMonthCard({
           Tạo kỳ tiếp theo: tự động chuyển số điện cuối kỳ thành số đầu kỳ mới, áp dụng bảng giá
           hiện tại và giữ nguyên khách thuê. Quản lý sẽ nhập số điện mới ở trang ghi điện.
         </p>
+        <div className="rounded-xl bg-primary/10 px-4 py-3 text-sm">
+          <span className="text-muted">Sẽ tạo: </span>
+          <span className="font-extrabold text-primary">{nextLabel}</span>
+        </div>
         <Button
           onClick={() => {
-            if (confirm("Tạo tháng mới và sinh hoá đơn cho tất cả các phòng?")) create.mutate();
+            if (confirm(`Tạo ${nextLabel} và sinh hoá đơn cho tất cả các phòng?`)) create.mutate();
           }}
           disabled={create.isPending}
         >
           {create.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
-          Tạo tháng mới
+          Tạo {nextLabel}
         </Button>
 
         {month && (

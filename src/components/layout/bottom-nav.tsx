@@ -20,23 +20,10 @@ export function BottomNav() {
               href={item.href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
-                active
-                  ? "text-primary"
-                  : item.highlight
-                    ? "text-primary/90"
-                    : "text-muted",
+                active ? "text-primary" : "text-muted",
               )}
             >
-              <span
-                className={cn(
-                  "flex items-center justify-center rounded-full px-3 py-0.5",
-                  !active && item.highlight && "bg-primary/10",
-                )}
-              >
-                <Icon
-                  className={cn("h-6 w-6", (active || item.highlight) && "stroke-[2.5]")}
-                />
-              </span>
+              <Icon className={cn("h-6 w-6", active && "stroke-[2.5]")} />
               {item.label}
             </Link>
           );

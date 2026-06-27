@@ -34,9 +34,7 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
                 "flex items-center gap-3 rounded-xl px-3 py-3 text-base font-semibold transition-colors",
                 active
                   ? "bg-primary text-primary-foreground"
-                  : item.highlight
-                    ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/25 hover:bg-primary/15"
-                    : "text-foreground hover:bg-surface-2",
+                  : "text-foreground hover:bg-surface-2",
               )}
             >
               <Icon className="h-5 w-5" />

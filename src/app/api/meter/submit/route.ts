@@ -30,10 +30,13 @@ export async function POST(request: Request) {
     .from("bills")
     .select("reading_old, reading_new")
     .eq("month_id", body.monthId);
-  const hasInvalid = (bills ?? []).some(
-    (b: { reading_old: number; reading_new: number | null }) =>
-      b.reading_new != null && b.reading_new < b.reading_old,
-  );
+  const billRows = (bills ?? []) as { reading_old: number; reading_new: number | null }[];
+  // every room must have a reading, and none may be below its số cũ
+  const hasEmpty = billRows.some((b) => b.reading_new == null);
+  if (hasEmpty) {
+    return NextResponse.json({ error: "incomplete" }, { status: 400 });
+  }
+  const hasInvalid = billRows.some((b) => b.reading_new != null && b.reading_new < b.reading_old);
   if (hasInvalid) {
     return NextResponse.json({ error: "invalid_reading" }, { status: 400 });
   }
