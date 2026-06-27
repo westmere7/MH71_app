@@ -9,7 +9,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
-  { href: "/tenants", label: "Phòng & Khách", icon: Users },
+  { href: "/tenants", label: "Phòng thuê", icon: Users },
   { href: "/settings", label: "Cài đặt", icon: Settings },
   { href: "/gia", label: "Thiết lập giá", icon: Coins },
 ];

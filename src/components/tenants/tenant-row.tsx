@@ -145,11 +145,13 @@ export function TenantRow({
   ) : underpaid ? (
     <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
       <span className="text-warning">{formatNumber(paidAmountOf(bill))}</span>
-      <span className="text-muted">/{formatVND(total)}</span>
+      <span className="text-muted">/{formatNumber(total)}</span>
+      <Dong />
     </span>
   ) : (
     <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
-      {formatVND(total)}
+      {formatNumber(total)}
+      <Dong />
     </span>
   );
   // legacy "partial" (Còn nợ) bills are shown as "Chưa thanh toán" now
@@ -237,10 +239,12 @@ export function TenantRow({
                 </>
               )}
             </div>
-            {/* mobile: amount stacked over status. desktop: both on one line, amount then status */}
-            <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-5">
-              {totalEl}
-              {statusEl}
+            {/* mobile: amount stacked over status. desktop: fixed-width columns so
+                different status widths can't shift the fee, divider centered between */}
+            <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-0">
+              <div className="sm:w-36 sm:text-right">{totalEl}</div>
+              <div className="hidden sm:mx-3 sm:block sm:h-6 sm:w-px sm:bg-border/60" />
+              <div className="flex justify-end sm:w-32 sm:justify-start">{statusEl}</div>
             </div>
             <ChevronDown
               className={cn(
@@ -440,6 +444,11 @@ export function TenantRow({
       )}
     </Card>
   );
+}
+
+/** Small, muted "₫" currency mark shown after an amount. */
+function Dong() {
+  return <span className="ml-0.5 align-baseline text-[0.7em] font-semibold text-muted">₫</span>;
 }
 
 function BreakdownRow({

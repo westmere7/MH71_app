@@ -3,10 +3,10 @@ import { vi } from "date-fns/locale";
 
 const viNum = new Intl.NumberFormat("vi-VN");
 
-/** 2500000 -> "2.500.000 đ" */
+/** 2500000 -> "2.500.000 ₫" */
 export function formatVND(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
-  return `${viNum.format(Math.round(value))} đ`;
+  return `${viNum.format(Math.round(value))} ₫`;
 }
 
 /** Plain grouped number: 12345 -> "12.345" */

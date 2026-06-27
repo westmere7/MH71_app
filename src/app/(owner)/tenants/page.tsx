@@ -72,7 +72,7 @@ export default function TenantsPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-extrabold tracking-tight">Phòng &amp; Khách thuê</h1>
+        <h1 className="text-xl font-extrabold tracking-tight">Phòng thuê</h1>
         {selectedMonth && (
           <span className="text-sm font-semibold text-muted">
             Đã thu {paidCount}/{rooms.length} phòng

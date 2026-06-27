@@ -15,19 +15,25 @@ import {
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { useAllBills } from "@/lib/queries";
-import { computeMonthStats, pctChange, deriveCollectionStatus } from "@/lib/finance";
+import { computeMonthStats, pctChange } from "@/lib/finance";
 import type { Bill, MonthRow } from "@/lib/supabase/types";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { HistoryChart, type HistoryPoint } from "@/components/dashboard/history-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { PROGRESS_STATUS, PHASE_LABELS } from "@/lib/constants";
 import { formatVND, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+const CHART_SPANS = [
+  { key: "all", label: "Tất cả", months: 0 },
+  { key: "year", label: "1 năm", months: 12 },
+  { key: "half", label: "6 tháng", months: 6 },
+] as const;
+type ChartSpan = (typeof CHART_SPANS)[number]["key"];
+
 export default function DashboardPage() {
   const { months, selectedMonth, isLoading } = useMonthCtx();
+  const [chartSpan, setChartSpan] = React.useState<ChartSpan>("all");
   const allBillsQ = useAllBills();
   const allBills = React.useMemo(() => allBillsQ.data ?? [], [allBillsQ.data]);
 
@@ -92,19 +98,27 @@ export default function DashboardPage() {
   const collectionPct =
     cur.totalBilled > 0 ? Math.round((cur.collected / cur.totalBilled) * 100) : 0;
 
+  // history chart, limited to the selected span (points are oldest -> newest)
+  const spanMonths = CHART_SPANS.find((s) => s.key === chartSpan)?.months ?? 0;
+  const chartPoints =
+    spanMonths > 0 ? longTerm.points.slice(-spanMonths) : longTerm.points;
+
   return (
     <div className="flex flex-col gap-8">
       {/* ---------------- current month ---------------- */}
       <section className="flex flex-col gap-4">
-        <Card className="flex flex-col gap-4 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-extrabold tracking-tight">Tình trạng tháng này</h2>
-            <Badge className={PROGRESS_STATUS[deriveCollectionStatus(cur)].chip}>
-              {PHASE_LABELS.collection_status}: {PROGRESS_STATUS[deriveCollectionStatus(cur)].label}
-            </Badge>
+        <Card className="overflow-hidden p-0">
+          {/* header photo — fades into the content below via an opacity mask */}
+          <div className="h-32 w-full sm:h-40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/header.jpg"
+              alt="MH71"
+              className="h-full w-full object-cover [mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)]"
+            />
           </div>
 
-          <div>
+          <div className="-mt-4 px-4 pb-4 sm:px-5 sm:pb-5">
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="font-medium text-muted">Tiến độ thu tiền</span>
               <span className="font-bold">
@@ -115,7 +129,7 @@ export default function DashboardPage() {
                 </span>
               </span>
             </div>
-            <div className="h-4 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
+            <div className="h-6 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
               <div
                 className={cn("h-full rounded-full transition-all", collectionPct > 0 && "collection-bar")}
                 style={{ width: `${collectionPct}%` }}
@@ -221,9 +235,28 @@ export default function DashboardPage() {
 
         <Card>
           <CardContent className="p-5 sm:p-6">
-            <h3 className="mb-4 text-base font-bold">Lịch sử doanh thu & lợi nhuận</h3>
-            {longTerm.points.length > 0 ? (
-              <HistoryChart data={longTerm.points} />
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-bold">Lịch sử doanh thu &amp; lợi nhuận</h3>
+              <div className="flex gap-1 rounded-full bg-surface-2 p-1">
+                {CHART_SPANS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setChartSpan(s.key)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                      chartSpan === s.key
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted hover:text-foreground",
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {chartPoints.length > 0 ? (
+              <HistoryChart data={chartPoints} />
             ) : (
               <p className="py-10 text-center text-muted">Chưa có dữ liệu lịch sử.</p>
             )}

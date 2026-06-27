@@ -64,13 +64,13 @@ export function StatusMenu({
           if (!disabled) setOpen(!wasOpenOnDown.current);
         }}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50",
+          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50",
           meta.chip,
         )}
       >
-        <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
         {meta.short}
-        <ChevronDown className="h-4 w-4 opacity-70" />
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {STATUS_CHOICES.map((c) => (
