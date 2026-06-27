@@ -155,10 +155,16 @@ export function TenantRow({
   const totalEl = !bill ? (
     <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">—</span>
   ) : underpaid ? (
-    <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
-      <span className="text-warning">{formatNumber(paidAmountOf(bill))}</span>
-      <span className="text-muted">/{formatNumber(total)}</span>
-      <Dong />
+    // "trả thiếu" — paid amount on top, total below, so it fits the column
+    <span className="flex flex-col items-end leading-tight">
+      <span className="whitespace-nowrap text-base font-bold tabular-nums text-warning sm:text-xl">
+        {formatNumber(paidAmountOf(bill))}
+        <Dong />
+      </span>
+      <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-muted">
+        / {formatNumber(total)}
+        <Dong />
+      </span>
     </span>
   ) : (
     <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
