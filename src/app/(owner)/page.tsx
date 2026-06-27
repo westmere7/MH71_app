@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PROGRESS_STATUS, PHASE_LABELS } from "@/lib/constants";
 import { formatVND, formatNumber } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { months, selectedMonth, isLoading } = useMonthCtx();
@@ -95,17 +96,33 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-8">
       {/* ---------------- current month ---------------- */}
       <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-extrabold tracking-tight">Tình trạng tháng này</h2>
-          <div className="flex flex-wrap gap-2">
-            <Badge className={PROGRESS_STATUS[selectedMonth.meter_status].chip}>
-              {PHASE_LABELS.meter_status}: {PROGRESS_STATUS[selectedMonth.meter_status].label}
-            </Badge>
+        <Card className="flex flex-col gap-4 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-extrabold tracking-tight">Tình trạng tháng này</h2>
             <Badge className={PROGRESS_STATUS[deriveCollectionStatus(cur)].chip}>
               {PHASE_LABELS.collection_status}: {PROGRESS_STATUS[deriveCollectionStatus(cur)].label}
             </Badge>
           </div>
-        </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium text-muted">Tiến độ thu tiền</span>
+              <span className="font-bold">
+                <span className="text-success">{collectionPct}%</span>
+                <span className="text-muted">
+                  {" "}
+                  • {cur.paidCount}/{cur.roomCount} phòng
+                </span>
+              </span>
+            </div>
+            <div className="h-4 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
+              <div
+                className={cn("h-full rounded-full transition-all", collectionPct > 0 && "collection-bar")}
+                style={{ width: `${collectionPct}%` }}
+              />
+            </div>
+          </div>
+        </Card>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <StatCard
@@ -138,7 +155,16 @@ export default function DashboardPage() {
           <StatCard
             label="Tiền điện tiêu thụ"
             value={cur.meterFilled ? formatVND(cur.electricityTotal) : "Chưa ghi"}
-            sub={cur.meterFilled ? `${formatNumber(cur.unitsTotal)} số điện` : "quản lý chưa nhập"}
+            sub={
+              cur.meterFilled ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-success">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Đã ghi {formatNumber(cur.unitsTotal)} số điện
+                </span>
+              ) : (
+                "quản lý chưa nhập"
+              )
+            }
             icon={Zap}
             tone="warning"
           />
@@ -158,19 +184,6 @@ export default function DashboardPage() {
             tone="warning"
           />
         </div>
-
-        <Card className="p-4">
-          <div className="mb-2 flex items-center justify-between text-sm font-medium">
-            <span className="text-muted">Tiến độ thu tiền</span>
-            <span className="font-bold">{collectionPct}%</span>
-          </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-success transition-all"
-              style={{ width: `${collectionPct}%` }}
-            />
-          </div>
-        </Card>
       </section>
 
       {/* ---------------- long term ---------------- */}

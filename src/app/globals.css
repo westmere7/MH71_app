@@ -115,6 +115,25 @@ body {
   }
 }
 
+/* dashboard collection progress — solid green with subtle moving stripes */
+@keyframes collection-stripes {
+  to {
+    background-position: 1.414rem 0;
+  }
+}
+.collection-bar {
+  background-color: var(--color-success);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.16) 0,
+    rgba(255, 255, 255, 0.16) 0.5rem,
+    transparent 0.5rem,
+    transparent 1rem
+  );
+  background-size: 1.414rem 1.414rem;
+  animation: collection-stripes 0.9s linear infinite;
+}
+
 /* number inputs without spinners (meter entry) */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
