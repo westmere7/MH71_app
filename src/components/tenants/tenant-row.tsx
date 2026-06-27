@@ -252,8 +252,13 @@ export function TenantRow({
                 <div className="flex flex-col gap-1.5">
                   <BreakdownRow
                     label="Tiền điện"
-                    hint={`${formatNumber(bill.units)} số × ${formatNumber(bill.electricity_rate)}đ`}
-                    value={formatVND(bill.electricity_amount)}
+                    hint={
+                      bill.reading_new == null
+                        ? "Chưa ghi số điện"
+                        : `${formatNumber(bill.units)} số × ${formatNumber(bill.electricity_rate)}đ`
+                    }
+                    hintTone={bill.reading_new == null ? "warning" : "muted"}
+                    value={bill.reading_new == null ? "—" : formatVND(bill.electricity_amount)}
                   />
                   <div className="mt-1 flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
                     <span className="font-bold">Tổng cộng</span>
@@ -281,8 +286,13 @@ export function TenantRow({
                 <div className="flex flex-col gap-1.5">
                   <BreakdownRow
                     label="Tiền điện"
-                    hint={`${formatNumber(bill.units)} số × ${formatNumber(bill.electricity_rate)}đ`}
-                    value={formatVND(bill.electricity_amount)}
+                    hint={
+                      bill.reading_new == null
+                        ? "Chưa ghi số điện"
+                        : `${formatNumber(bill.units)} số × ${formatNumber(bill.electricity_rate)}đ`
+                    }
+                    hintTone={bill.reading_new == null ? "warning" : "muted"}
+                    value={bill.reading_new == null ? "—" : formatVND(bill.electricity_amount)}
                   />
                   <BreakdownRow label="Tiền phòng" value={formatVND(bill.room_fee)} />
                   <BreakdownRow label="Tiền rác" value={formatVND(bill.trash_fee)} />
@@ -422,16 +432,27 @@ function BreakdownRow({
   label,
   value,
   hint,
+  hintTone,
 }: {
   label: string;
   value: string;
   hint?: string;
+  hintTone?: "muted" | "warning";
 }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-muted">
         {label}
-        {hint && <span className="ml-1.5 text-sm text-muted/70">({hint})</span>}
+        {hint && (
+          <span
+            className={cn(
+              "ml-1.5 text-sm",
+              hintTone === "warning" ? "font-semibold text-warning" : "text-muted/70",
+            )}
+          >
+            {hintTone === "warning" ? hint : `(${hint})`}
+          </span>
+        )}
       </span>
       <span className="font-semibold">{value}</span>
     </div>

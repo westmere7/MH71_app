@@ -12,6 +12,7 @@ import {
   Lock,
   Trash2,
   Pencil,
+  Circle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -271,7 +272,10 @@ function MeterRow({
   const [value, setValue] = React.useState<string>(
     row.reading_new != null ? String(row.reading_new) : "",
   );
-  const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  // preloaded readings are already saved server-side → start as "saved"
+  const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "error">(
+    row.reading_new != null ? "saved" : "idle",
+  );
 
   const num = value === "" ? null : Number(value);
   const valid = num != null && !Number.isNaN(num);
@@ -352,8 +356,10 @@ function MeterRow({
             <Loader2 className="h-5 w-5 animate-spin text-muted" />
           ) : blocking || status === "error" ? (
             <AlertTriangle className="h-5 w-5 text-danger" />
-          ) : status === "saved" ? (
+          ) : rowState === "ok" && status === "saved" ? (
             <Check className="h-5 w-5 text-success" />
+          ) : rowState === "empty" ? (
+            <Circle className="h-5 w-5 text-muted/40" />
           ) : null}
         </div>
       </div>
