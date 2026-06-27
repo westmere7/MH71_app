@@ -17,6 +17,7 @@ export interface Settings {
   electricity_rate: number;
   trash_fee: number;
   collection_target_pct: number;
+  ui_scale: number; // interface + text scale; 1 = default (migration 0007)
   updated_at: string;
 }
 

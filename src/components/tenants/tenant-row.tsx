@@ -10,7 +10,7 @@ import {
   Video,
   Clock,
   LogOut,
-  DoorClosed,
+  Plus,
   History,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import { TenantFormDialog } from "./tenant-form-dialog";
 import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
 import { qk, usePaymentLogs } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
+import type { StatusChoice } from "@/lib/constants";
 import { formatVND, formatNumber, formatDateTime } from "@/lib/format";
 import type { Bill, MonthRow, PaymentStatus, Room, Tenant } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
@@ -114,15 +115,16 @@ export function TenantRow({
       checkoutMut.mutate();
   }
 
-  function onStatusSelect(s: PaymentStatus) {
-    if (s === "paid_cash" || s === "paid_transfer") {
-      // open the payment dialog to (optionally) record a "trả thiếu" amount
-      setPayMethod(s);
+  function onChoose(c: StatusChoice) {
+    if (c === "paid") {
+      // open the payment dialog to pick method + (optionally) a "trả thiếu" amount
+      setPayMethod(bill?.payment_status === "paid_cash" ? "paid_cash" : "paid_transfer");
       setPayOpen(true);
-    } else if (s === "vacant" && tenant) {
-      checkout(); // choosing "Trống" while a tenant is in the room = trả phòng
+    } else if (c === "vacant") {
+      if (tenant) checkout(); // "Trống" while a tenant is in the room = trả phòng
+      else statusMut.mutate({ status: "vacant" });
     } else {
-      statusMut.mutate({ status: s });
+      if (shownStatus !== "unpaid") statusMut.mutate({ status: "unpaid" });
     }
   }
 
@@ -139,14 +141,16 @@ export function TenantRow({
   // when underpaid ("trả thiếu") show "đã thu / tổng", e.g. 1.500.000/2.000.000 đ
   const underpaid = bill ? isUnderpaid(bill) : false;
   const totalEl = !bill ? (
-    <span className="text-base font-bold tabular-nums">—</span>
+    <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">—</span>
   ) : underpaid ? (
-    <span className="text-base font-bold tabular-nums">
+    <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
       <span className="text-warning">{formatNumber(paidAmountOf(bill))}</span>
       <span className="text-muted">/{formatVND(total)}</span>
     </span>
   ) : (
-    <span className="text-base font-bold tabular-nums">{formatVND(total)}</span>
+    <span className="whitespace-nowrap text-base font-bold tabular-nums sm:text-xl">
+      {formatVND(total)}
+    </span>
   );
   // legacy "partial" (Còn nợ) bills are shown as "Chưa thanh toán" now
   const shownStatus: PaymentStatus =
@@ -156,7 +160,7 @@ export function TenantRow({
     <div onClick={(e) => e.stopPropagation()}>
       <StatusMenu
         status={shownStatus}
-        onSelect={onStatusSelect}
+        onChoose={onChoose}
         disabled={vacant || statusMut.isPending || checkoutMut.isPending}
       />
     </div>
@@ -181,45 +185,60 @@ export function TenantRow({
         >
           <div className="flex items-center gap-3 sm:gap-4">
             {/* room number — bold text (no box) so it reads as a label, not an avatar */}
-            <span className="w-9 shrink-0 text-center text-lg font-extrabold tracking-tight text-primary">
+            <span className="w-8 shrink-0 text-center text-base font-extrabold tracking-tight text-primary">
               {room.code}
             </span>
-            {/* avatar (muted door icon when the room is empty) */}
-            {vacant ? (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted">
-                <DoorClosed className="h-5 w-5" />
-              </span>
-            ) : (
-              <Avatar name={name} photoUrl={tenant?.photo_url} size={40} />
-            )}
-            {/* name + phone + duration */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className={cn("truncate font-semibold", vacant && "text-muted")}>
-                  {displayName}
+            {/* avatar — tapping opens "Sửa thông tin" (add when empty);
+                the rest of the card still expands/collapses */}
+            <button
+              type="button"
+              aria-label="Sửa thông tin"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFormOpen(true);
+              }}
+              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {vacant ? (
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Plus className="h-5 w-5" />
                 </span>
-                {!vacant && tenant?.camera_access && (
-                  <Video className="h-4 w-4 shrink-0 text-primary" />
-                )}
-              </div>
-              {!vacant && (
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted">
-                  {tenant?.phone ? (
-                    <a
-                      href={`tel:${tenant.phone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {tenant.phone}
-                    </a>
-                  ) : (
-                    <span>Chưa có SĐT</span>
-                  )}
+              ) : (
+                <Avatar name={name} photoUrl={tenant?.photo_url} size={40} />
+              )}
+            </button>
+            {/* name + phone (occupied) — or a single hint line when empty */}
+            <div className="min-w-0 flex-1">
+              {vacant ? (
+                <div className="text-sm text-muted">
+                  {'Phòng trống, nhấn "+" để thêm khách thuê mới'}
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate font-semibold">{displayName}</span>
+                    {tenant?.camera_access && (
+                      <Video className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-muted">
+                    {tenant?.phone ? (
+                      <a
+                        href={`tel:${tenant.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:underline"
+                      >
+                        {tenant.phone}
+                      </a>
+                    ) : (
+                      "Chưa có SĐT"
+                    )}
+                  </div>
+                </>
               )}
             </div>
-            {/* desktop: total + status inline */}
-            <div className="hidden items-center gap-5 sm:flex">
+            {/* mobile: amount stacked over status. desktop: both on one line, amount then status */}
+            <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-5">
               {totalEl}
               {statusEl}
             </div>
@@ -229,12 +248,6 @@ export function TenantRow({
                 open && "rotate-180",
               )}
             />
-          </div>
-
-          {/* mobile: total + status on a second row, both right-aligned */}
-          <div className="mt-2.5 flex items-center justify-end gap-3 sm:hidden">
-            {totalEl}
-            {statusEl}
           </div>
         </div>
 
@@ -331,7 +344,7 @@ export function TenantRow({
                     <>
                       <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
                         <UserPen className="h-4 w-4" />
-                        Sửa khách
+                        Sửa thông tin
                       </Button>
                       <Button
                         size="sm"

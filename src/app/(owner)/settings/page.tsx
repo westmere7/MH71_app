@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  ALargeSmall,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { qk, useBills } from "@/lib/queries";
-import { updateMonthMeta, createNextMonth, deleteMonth } from "@/lib/mutations";
+import { qk, useBills, useSettings } from "@/lib/queries";
+import { updateMonthMeta, createNextMonth, deleteMonth, updateSettings } from "@/lib/mutations";
+import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { monthLabel, formatNumber, formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { MonthRow } from "@/lib/supabase/types";
 import { toast } from "sonner";
 
@@ -55,6 +58,8 @@ export default function SettingsPage() {
       />
 
       {selectedMonth && <MeterExpenseCard key={selectedMonth.id} qc={qc} month={selectedMonth} />}
+
+      <DisplayCard qc={qc} />
 
       <Card>
         <CardHeader>
@@ -115,10 +120,6 @@ function AddRemoveMonthCard({
           Tạo kỳ tiếp theo: tự động chuyển số điện cuối kỳ thành số đầu kỳ mới, áp dụng bảng giá
           hiện tại và giữ nguyên khách thuê. Quản lý sẽ nhập số điện mới ở trang ghi điện.
         </p>
-        <div className="rounded-xl bg-primary/10 px-4 py-3 text-sm">
-          <span className="text-muted">Sẽ tạo: </span>
-          <span className="font-extrabold text-primary">{nextLabel}</span>
-        </div>
         <Button
           onClick={() => {
             if (confirm(`Tạo ${nextLabel} và sinh hoá đơn cho tất cả các phòng?`)) create.mutate();
@@ -167,7 +168,7 @@ function DeleteMonthButton({
         className="self-start border-danger/40 text-danger"
       >
         <Trash2 className="h-5 w-5" />
-        Xoá tháng này — {monthLabel(month.year, month.month)}
+        Xoá {monthLabel(month.year, month.month)}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -194,6 +195,67 @@ function DeleteMonthButton({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* ----------------------------- display ------------------------------ */
+function DisplayCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const settings = useSettings().data;
+  const current = settings?.ui_scale ?? UI_SCALE_DEFAULT;
+
+  const setScale = useMutation({
+    mutationFn: (scale: number) => updateSettings({ ui_scale: scale }),
+    // apply instantly for snappy feedback, then persist
+    onMutate: (scale: number) => {
+      applyUiScale(scale);
+      if (typeof window !== "undefined") localStorage.setItem(UI_SCALE_KEY, String(scale));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success("Đã lưu cỡ hiển thị");
+    },
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0007."),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center gap-2">
+        <ALargeSmall className="h-5 w-5 text-primary" />
+        <CardTitle>Hiển thị</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">Cỡ chữ &amp; giao diện</span>
+          <p className="text-sm text-muted">
+            Phóng to / thu nhỏ toàn bộ ứng dụng. Áp dụng ngay và lưu cho mọi thiết bị.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {UI_SCALES.map((s) => {
+            const active = Math.abs(current - s.value) < 0.001;
+            return (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => !active && setScale.mutate(s.value)}
+                disabled={setScale.isPending}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 transition-colors disabled:opacity-60",
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:bg-surface-2",
+                )}
+              >
+                <span className="font-extrabold leading-none" style={{ fontSize: `${s.value}rem` }}>
+                  A
+                </span>
+                <span className="text-xs font-semibold">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -232,83 +294,57 @@ function MeterExpenseCard({
     <Card>
       <CardHeader className="flex items-center gap-2">
         <Zap className="h-5 w-5 text-primary" />
-        <CardTitle>Tiền điện & chi phí khác — {monthLabel(month.year, month.month)}</CardTitle>
+        <CardTitle>Số điện &amp; chi phí</CardTitle>
+        <span className="ml-auto text-sm font-semibold text-muted">
+          {monthLabel(month.year, month.month)}
+        </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        {/* meter status */}
+        {/* meter status + note photo, one tidy block */}
         <div className="flex flex-col gap-3 rounded-xl bg-surface-2 p-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-muted">Số điện tháng này</span>
+            <span className="text-sm font-semibold">Số điện tháng này</span>
             {loading ? (
               <span className="text-sm text-muted">Đang tải…</span>
             ) : filled ? (
-              <span className="text-lg font-extrabold">{formatNumber(stats.unitsTotal)} số</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-success-surface px-2.5 py-1 text-sm font-semibold text-success">
+                <CheckCircle2 className="h-4 w-4" />
+                Đã ghi {formatNumber(stats.unitsTotal)} số
+              </span>
             ) : (
-              <span className="rounded-full bg-warning-surface px-2.5 py-1 text-sm font-semibold text-warning">
-                Chưa ghi số điện
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-surface px-2.5 py-1 text-sm font-semibold text-warning">
+                <AlertCircle className="h-4 w-4" />
+                Chưa ghi
               </span>
             )}
           </div>
-          {!loading && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              {filled ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                  <span className="font-medium text-success">Quản lý đã ghi xong</span>
-                  {month.meter_filled_at && (
-                    <span className="flex items-center gap-1 text-muted">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatDateTime(month.meter_filled_at)}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4 text-warning" />
-                  <span className="font-medium text-warning">Quản lý chưa ghi số điện tháng này</span>
-                </>
-              )}
-            </div>
+          {filled && month.meter_filled_at && (
+            <span className="flex items-center gap-1 text-xs text-muted">
+              <Clock className="h-3.5 w-3.5" />
+              {formatDateTime(month.meter_filled_at)}
+            </span>
           )}
-        </div>
-
-        {/* note photo */}
-        <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-1.5 text-sm font-semibold">
-            <Camera className="h-4 w-4 text-muted" /> Ảnh giấy ghi số điện
-          </span>
-          {month.meter_note_photo_url ? (
-            <a href={month.meter_note_photo_url} target="_blank" rel="noopener noreferrer">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={month.meter_note_photo_url}
-                alt="Ảnh ghi số điện"
-                className="max-h-48 rounded-xl border border-border object-contain"
-              />
-            </a>
-          ) : (
-            <p className="text-sm text-muted">Quản lý chưa tải ảnh.</p>
-          )}
-        </div>
-
-        {/* link to meter page */}
-        <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border p-4">
-          <span className="text-sm font-semibold">Trang ghi điện cho quản lý</span>
-          <p className="text-sm text-muted">
-            Gửi đường link này cho người quản lý tại chỗ để nhập số điện. Mật khẩu trang:{" "}
-            <span className="font-bold text-foreground">mh71</span>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <a href="/dien" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline">
-                <ExternalLink className="h-5 w-5" />
-                Mở trang ghi điện
-              </Button>
-            </a>
-            <Button variant="outline" onClick={copyMeterLink}>
-              <Copy className="h-5 w-5" />
-              Copy
-            </Button>
+          <div className="flex items-center gap-3 border-t border-border pt-3">
+            {month.meter_note_photo_url ? (
+              <a
+                href={month.meter_note_photo_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 text-sm font-medium text-primary hover:underline"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={month.meter_note_photo_url}
+                  alt="Ảnh ghi số điện"
+                  className="h-14 w-14 rounded-lg border border-border object-cover"
+                />
+                Xem ảnh giấy ghi số
+              </a>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-muted">
+                <Camera className="h-4 w-4" /> Chưa có ảnh giấy ghi số
+              </span>
+            )}
           </div>
         </div>
 
@@ -328,6 +364,28 @@ function MeterExpenseCard({
           <p className="text-sm text-muted">
             Các chi phí thanh toán bên ngoài khác như internet, dịch vụ, v.v.
           </p>
+        </div>
+
+        {/* link to meter page */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2 p-4">
+          <div className="text-sm">
+            <div className="font-semibold">Trang ghi điện cho quản lý</div>
+            <div className="text-muted">
+              Mật khẩu: <span className="font-bold text-foreground">mh71</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a href="/dien" target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="h-4 w-4" />
+                Mở trang
+              </Button>
+            </a>
+            <Button variant="outline" size="sm" onClick={copyMeterLink}>
+              <Copy className="h-4 w-4" />
+              Copy link
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

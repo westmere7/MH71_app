@@ -14,16 +14,18 @@ export interface StatusMeta {
 }
 
 export const PAYMENT_STATUS: Record<PaymentStatus, StatusMeta> = {
+  // both methods read as a single "Đã thanh toán" status (the method is chosen
+  // in the payment dialog; it's still stored, just not surfaced as the label).
   paid_cash: {
-    label: "Đã trả tiền mặt",
-    short: "Tiền mặt",
+    label: "Đã thanh toán",
+    short: "Đã thanh toán",
     chip: "bg-success-surface text-success",
     dot: "bg-success",
     isPaid: true,
   },
   paid_transfer: {
-    label: "Đã chuyển khoản",
-    short: "C.Khoản",
+    label: "Đã thanh toán",
+    short: "Đã thanh toán",
     chip: "bg-success-surface text-success",
     dot: "bg-success",
     isPaid: true,
@@ -51,17 +53,25 @@ export const PAYMENT_STATUS: Record<PaymentStatus, StatusMeta> = {
   },
 };
 
-// Order shown in the status picker ("partial" is gone — use the "trả thiếu"
-// toggle on a cash/transfer payment instead).
-export const PAYMENT_STATUS_ORDER: PaymentStatus[] = [
-  "unpaid",
-  "paid_cash",
-  "paid_transfer",
-  "vacant",
-];
-
 export function isPaidStatus(s: PaymentStatus): boolean {
   return s === "paid_cash" || s === "paid_transfer";
+}
+
+// The status picker shows three choices. "paid" opens the payment dialog (where
+// the cash/transfer method + any "trả thiếu" amount is chosen); the two paid
+// methods both map back to this single choice.
+export type StatusChoice = "unpaid" | "paid" | "vacant";
+
+export const STATUS_CHOICES: { value: StatusChoice; label: string; dot: string }[] = [
+  { value: "unpaid", label: "Chưa thanh toán", dot: "bg-danger" },
+  { value: "paid", label: "Đã thanh toán", dot: "bg-success" },
+  { value: "vacant", label: "Trống", dot: "bg-muted" },
+];
+
+export function statusChoiceOf(s: PaymentStatus): StatusChoice {
+  if (isPaidStatus(s)) return "paid";
+  if (s === "vacant") return "vacant";
+  return "unpaid";
 }
 
 /** số tiền đã thu của một hoá đơn (null amount_paid = thu đủ) */

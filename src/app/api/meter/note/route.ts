@@ -2,24 +2,12 @@ import { NextResponse } from "next/server";
 import { isMeterAuthed } from "@/lib/meter-auth";
 import { createServiceClient } from "@/lib/supabase/service";
 
+// Upload-only: stores the file and returns its public URL. The month's
+// meter_note_photo_url is NOT touched here — it is set during /submit, so a
+// staged photo never appears in the owner app until the manager submits.
 export async function POST(request: Request) {
   if (!(await isMeterAuthed())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  // JSON body { monthId, remove: true } clears the note photo
-  if (request.headers.get("content-type")?.includes("application/json")) {
-    const body = (await request.json()) as { monthId?: string; remove?: boolean };
-    if (typeof body.monthId !== "string" || !body.remove) {
-      return NextResponse.json({ error: "bad_request" }, { status: 400 });
-    }
-    const sb = createServiceClient();
-    const { error } = await sb
-      .from("months")
-      .update({ meter_note_photo_url: null })
-      .eq("id", body.monthId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, url: null });
   }
 
   const form = await request.formData();
@@ -41,11 +29,5 @@ export async function POST(request: Request) {
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
   const { data: pub } = sb.storage.from("meter-notes").getPublicUrl(path);
-  const { error: updErr } = await sb
-    .from("months")
-    .update({ meter_note_photo_url: pub.publicUrl })
-    .eq("id", monthId);
-  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
-
   return NextResponse.json({ ok: true, url: pub.publicUrl });
 }

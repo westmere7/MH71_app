@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -7,9 +8,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PAYMENT_STATUS, PAYMENT_STATUS_ORDER } from "@/lib/constants";
+import { PAYMENT_STATUS, STATUS_CHOICES, statusChoiceOf } from "@/lib/constants";
+import type { StatusChoice } from "@/lib/constants";
 import type { PaymentStatus } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
+
+// movement (px) past which a press is treated as a scroll, not a tap
+const DRAG_THRESHOLD = 10;
 
 export function StatusChip({
   status,
@@ -35,18 +40,47 @@ export function StatusChip({
 
 export function StatusMenu({
   status,
-  onSelect,
+  onChoose,
   disabled,
 }: {
   status: PaymentStatus;
-  onSelect: (s: PaymentStatus) => void;
+  onChoose: (c: StatusChoice) => void;
   disabled?: boolean;
 }) {
   const meta = PAYMENT_STATUS[status];
+  const current = statusChoiceOf(status);
+  const [open, setOpen] = React.useState(false);
+  const start = React.useRef<{ x: number; y: number } | null>(null);
+  const dragged = React.useRef(false);
+
+  function onPointerDown(e: React.PointerEvent) {
+    start.current = { x: e.clientX, y: e.clientY };
+    dragged.current = false;
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!start.current) return;
+    if (
+      Math.abs(e.clientX - start.current.x) > DRAG_THRESHOLD ||
+      Math.abs(e.clientY - start.current.y) > DRAG_THRESHOLD
+    ) {
+      dragged.current = true;
+    }
+  }
+  function handleOpenChange(next: boolean) {
+    // a touch-and-drag (scroll) must not open the menu — only a deliberate tap
+    if (next && dragged.current) {
+      dragged.current = false;
+      return;
+    }
+    setOpen(next);
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger
         disabled={disabled}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50",
           meta.chip,
@@ -57,15 +91,15 @@ export function StatusMenu({
         <ChevronDown className="h-4 w-4 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {PAYMENT_STATUS_ORDER.map((s) => (
+        {STATUS_CHOICES.map((c) => (
           <DropdownMenuItem
-            key={s}
-            selected={s === status}
-            onSelect={() => s !== status && onSelect(s)}
+            key={c.value}
+            selected={c.value === current}
+            onSelect={() => onChoose(c.value)}
           >
             <span className="flex items-center gap-2">
-              <span className={cn("h-2.5 w-2.5 rounded-full", PAYMENT_STATUS[s].dot)} />
-              {PAYMENT_STATUS[s].label}
+              <span className={cn("h-2.5 w-2.5 rounded-full", c.dot)} />
+              {c.label}
             </span>
           </DropdownMenuItem>
         ))}

@@ -140,17 +140,52 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
 /* ------------------------------ form ------------------------------- */
 type RowState = "empty" | "invalid" | "ok";
 
+function classify(value: string, readingOld: number): RowState {
+  if (value === "") return "empty";
+  const n = Number(value);
+  if (Number.isNaN(n) || n < readingOld) return "invalid";
+  return "ok";
+}
+
 function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
+  const rows = data.rows;
   const [submitting, setSubmitting] = React.useState(false);
-  // per-room input state: must all be "ok" (filled + valid) before submitting
-  const [states, setStates] = React.useState<Record<string, RowState>>({});
-  const [photoUrl, setPhotoUrl] = React.useState<string | null>(
-    data.month?.meter_note_photo_url ?? null,
+
+  // All edits are staged locally and only written on "submit" — nothing is sent
+  // to the server until the button is pressed, so leaving the page discards them.
+  const [readings, setReadings] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(rows.map((r) => [r.id, r.reading_new != null ? String(r.reading_new) : ""])),
   );
 
-  const setRowState = React.useCallback((id: string, state: RowState) => {
-    setStates((prev) => (prev[id] === state ? prev : { ...prev, [id]: state }));
+  // staged note photo (not uploaded until submit)
+  const existingUrl = data.month?.meter_note_photo_url ?? null;
+  const [stagedFile, setStagedFile] = React.useState<File | null>(null);
+  const [stagedPreview, setStagedPreview] = React.useState<string | null>(null);
+  const [removeExisting, setRemoveExisting] = React.useState(false);
+
+  // revoke object URLs we created when they change / on unmount
+  React.useEffect(() => {
+    return () => {
+      if (stagedPreview) URL.revokeObjectURL(stagedPreview);
+    };
+  }, [stagedPreview]);
+
+  const setReading = React.useCallback((id: string, v: string) => {
+    setReadings((p) => ({ ...p, [id]: v }));
   }, []);
+
+  function pickPhoto(file: File) {
+    if (stagedPreview) URL.revokeObjectURL(stagedPreview);
+    setStagedFile(file);
+    setStagedPreview(URL.createObjectURL(file));
+    setRemoveExisting(false);
+  }
+  function clearPhoto() {
+    if (stagedPreview) URL.revokeObjectURL(stagedPreview);
+    setStagedFile(null);
+    setStagedPreview(null);
+    setRemoveExisting(true);
+  }
 
   if (!data.month) {
     return (
@@ -165,10 +200,12 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   // "xong" = the manager already finished this month → editing now revises figures
   const revising = month.meter_status === "xong";
 
-  const rowStates = data.rows.map((r) => states[r.id] ?? (r.reading_new != null ? "ok" : "empty"));
-  const anyInvalid = rowStates.some((s) => s === "invalid");
-  const anyEmpty = rowStates.some((s) => s === "empty");
-  const hasPhoto = !!photoUrl;
+  const previewUrl = stagedPreview ?? (removeExisting ? null : existingUrl);
+  const hasPhoto = !!stagedFile || (!!existingUrl && !removeExisting);
+
+  const rowStateList = rows.map((r) => classify(readings[r.id] ?? "", r.reading_old));
+  const anyInvalid = rowStateList.some((s) => s === "invalid");
+  const anyEmpty = rowStateList.some((s) => s === "empty");
   const canSubmit = !submitting && hasPhoto && !anyInvalid && !anyEmpty;
 
   const blockMsg = anyInvalid
@@ -176,23 +213,44 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
     : anyEmpty
       ? "Còn phòng chưa nhập số điện mới — phải nhập đủ tất cả các phòng."
       : !hasPhoto
-        ? "Cần tải ảnh giấy ghi số điện trước khi hoàn tất."
+        ? "Cần chụp ảnh giấy ghi số điện trước khi hoàn tất."
         : null;
 
   async function submit() {
     if (!canSubmit) return;
+    // updating a finished month overwrites figures the owner may already have seen
+    if (revising && !confirm(`Cập nhật lại số điện Tháng ${month.month}/${month.year}? Số liệu hiện tại sẽ bị ghi đè.`)) {
+      return;
+    }
     setSubmitting(true);
-    const res = await fetch("/api/meter/submit", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ monthId: month.id }),
-    });
-    setSubmitting(false);
-    if (res.ok) {
+    try {
+      // 1) upload the staged photo now (if any), else keep/remove the existing one
+      let notePhotoUrl = removeExisting ? null : existingUrl;
+      if (stagedFile) {
+        const form = new FormData();
+        form.append("file", stagedFile);
+        form.append("monthId", month.id);
+        const up = await fetch("/api/meter/note", { method: "POST", body: form });
+        if (!up.ok) throw new Error("upload");
+        notePhotoUrl = ((await up.json()) as { url: string }).url;
+      }
+      // 2) write all readings + finalize the month in one request
+      const res = await fetch("/api/meter/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          monthId: month.id,
+          notePhotoUrl,
+          readings: rows.map((r) => ({ billId: r.id, reading_new: Number(readings[r.id]) })),
+        }),
+      });
+      if (!res.ok) throw new Error("submit");
       toast.success(revising ? "Đã cập nhật số điện." : "Đã hoàn tất ghi điện. Cảm ơn!");
       reload();
-    } else {
+    } catch {
       toast.error("Không gửi được, thử lại.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -207,7 +265,7 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
             Ghi số điện — Tháng {month.month}/{month.year}
           </h1>
           <p className="text-muted">
-            Nhập số mới trên đồng hồ. Hệ thống tự tính số điện đã dùng.
+            Nhập số mới trên đồng hồ. Số liệu chỉ được lưu khi bấm nút bên dưới.
           </p>
         </div>
       </header>
@@ -223,12 +281,18 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
       )}
 
       <div className="flex flex-col gap-3">
-        {data.rows.map((row) => (
-          <MeterRow key={row.id} row={row} revising={revising} onStateChange={setRowState} />
+        {rows.map((row) => (
+          <MeterRow
+            key={row.id}
+            row={row}
+            revising={revising}
+            value={readings[row.id] ?? ""}
+            onValueChange={setReading}
+          />
         ))}
       </div>
 
-      <NoteUpload monthId={month.id} url={photoUrl} onChange={setPhotoUrl} />
+      <NoteUpload previewUrl={previewUrl} onPick={pickPhoto} onClear={clearPhoto} />
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-4 backdrop-blur">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
@@ -263,29 +327,21 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
 function MeterRow({
   row,
   revising,
-  onStateChange,
+  value,
+  onValueChange,
 }: {
   row: Row;
   revising: boolean;
-  onStateChange: (id: string, state: RowState) => void;
+  value: string;
+  onValueChange: (id: string, v: string) => void;
 }) {
-  const [value, setValue] = React.useState<string>(
-    row.reading_new != null ? String(row.reading_new) : "",
-  );
-  // preloaded readings are already saved server-side → start as "saved"
-  const [status, setStatus] = React.useState<"idle" | "saving" | "saved" | "error">(
-    row.reading_new != null ? "saved" : "idle",
-  );
-
   const num = value === "" ? null : Number(value);
   const valid = num != null && !Number.isNaN(num);
   const delta = valid ? num! - row.reading_old : null;
   const cost = delta != null && delta > 0 ? delta * row.electricity_rate : 0;
 
-  // a "blocking" row is a typed-in reading that is invalid (NaN or below số cũ).
-  // these can't be saved and prevent the whole month from being submitted.
-  const blocking = value !== "" && (!valid || num! < row.reading_old);
-  const rowState: RowState = blocking ? "invalid" : value === "" ? "empty" : "ok";
+  const rowState = classify(value, row.reading_old);
+  const blocking = rowState === "invalid";
 
   let warn: { tone: "danger" | "warning" | "info"; msg: string } | null = null;
   if (valid && num! < row.reading_old) {
@@ -296,83 +352,50 @@ function MeterRow({
     warn = { tone: "info", msg: "Không thay đổi so với tháng trước" };
   }
 
-  React.useEffect(() => {
-    onStateChange(row.id, rowState);
-  }, [rowState, row.id, onStateChange]);
-
-  async function save() {
-    // never persist an invalid reading; leave it flagged for the manager to fix
-    if (blocking) {
-      setStatus("error");
-      return;
-    }
-    setStatus("saving");
-    const res = await fetch("/api/meter/reading", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ billId: row.id, reading_new: value === "" ? null : num }),
-    });
-    setStatus(res.ok ? "saved" : "error");
-  }
-
   return (
     <Card className={cn("p-4", rowState === "empty" && "border-danger/30")}>
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-surface-2">
-          <span className="text-lg font-extrabold">{row.code}</span>
+        <div className="flex h-11 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <span className="text-lg font-extrabold tracking-tight">{row.code}</span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm text-muted">{row.tenant_name ?? "Phòng trống"}</div>
           <div className="text-sm">
-            Số cũ: <span className="font-bold">{formatNumber(row.reading_old)}</span>
+            Tháng trước: <span className="font-bold">{formatNumber(row.reading_old)}</span>
           </div>
-          {revising && row.reading_new != null && (
-            <div className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-warning">
-              <Pencil className="h-3 w-3" />
-              Đang sửa — đã nhập trước đó: {formatNumber(row.reading_new)}
-            </div>
-          )}
         </div>
-        <div className="w-32 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <Input
             inputMode="numeric"
             type="number"
             value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setStatus("idle");
-            }}
-            onBlur={save}
+            onChange={(e) => onValueChange(row.id, e.target.value)}
             placeholder="Số mới"
             className={cn(
-              "text-center text-lg font-bold",
+              "w-28 text-center text-lg font-bold",
               warn?.tone === "danger" && "border-danger",
               warn?.tone !== "danger" && revising && "border-warning bg-warning-surface/30",
             )}
           />
-        </div>
-        <div className="w-6 shrink-0">
-          {status === "saving" ? (
-            <Loader2 className="h-5 w-5 animate-spin text-muted" />
-          ) : blocking || status === "error" ? (
-            <AlertTriangle className="h-5 w-5 text-danger" />
-          ) : rowState === "ok" && status === "saved" ? (
-            <Check className="h-5 w-5 text-success" />
-          ) : rowState === "empty" ? (
-            <Circle className="h-5 w-5 text-muted/40" />
-          ) : null}
+          <span className="flex w-5 justify-center">
+            {blocking ? (
+              <AlertTriangle className="h-5 w-5 text-danger" />
+            ) : rowState === "ok" ? (
+              <Check className="h-5 w-5 text-success" />
+            ) : (
+              <Circle className="h-5 w-5 text-muted/40" />
+            )}
+          </span>
         </div>
       </div>
 
-      {(delta != null && delta > 0) || warn ? (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-          {delta != null && delta > 0 ? (
+      {((delta != null && delta > 0) || warn) && (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-3 text-sm">
+          {delta != null && delta > 0 && (
             <span className="text-muted">
               Đã dùng <span className="font-bold text-foreground">{formatNumber(delta)}</span> số ={" "}
               <span className="font-bold text-primary">{formatVND(cost)}</span>
             </span>
-          ) : (
-            <span />
           )}
           {warn && (
             <span
@@ -388,89 +411,56 @@ function MeterRow({
             </span>
           )}
         </div>
-      ) : null}
+      )}
     </Card>
   );
 }
 
 function NoteUpload({
-  monthId,
-  url,
-  onChange,
+  previewUrl,
+  onPick,
+  onClear,
 }: {
-  monthId: string;
-  url: string | null;
-  onChange: (url: string | null) => void;
+  previewUrl: string | null;
+  onPick: (file: File) => void;
+  onClear: () => void;
 }) {
-  const [uploading, setUploading] = React.useState(false);
-  const [removing, setRemoving] = React.useState(false);
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
-    form.append("monthId", monthId);
-    const res = await fetch("/api/meter/note", { method: "POST", body: form });
-    setUploading(false);
     e.target.value = "";
-    if (res.ok) {
-      const json = await res.json();
-      onChange(json.url);
-      toast.success("Đã tải ảnh ghi chú");
-    } else {
-      toast.error("Tải ảnh thất bại.");
-    }
-  }
-
-  async function remove() {
-    setRemoving(true);
-    const res = await fetch("/api/meter/note", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ monthId, remove: true }),
-    });
-    setRemoving(false);
-    if (res.ok) {
-      onChange(null);
-      toast.success("Đã xoá ảnh");
-    } else {
-      toast.error("Xoá ảnh thất bại.");
-    }
+    if (file) onPick(file);
   }
 
   return (
-    <Card className={cn("mt-4 p-4", !url && "border-danger/40 bg-danger-surface/40")}>
+    <Card className={cn("mt-4 p-4", !previewUrl && "border-danger/40 bg-danger-surface/40")}>
       <div className="flex items-center gap-3">
-        <Camera className={cn("h-5 w-5", url ? "text-primary" : "text-danger")} />
+        <Camera className={cn("h-5 w-5", previewUrl ? "text-primary" : "text-danger")} />
         <div className="flex-1">
           <div className="font-semibold">
             Ảnh giấy ghi số điện <span className="text-danger">*</span>
           </div>
           <div className="text-sm text-muted">
-            {url
-              ? "Chụp lại tờ giấy bạn đã ghi tay."
+            {previewUrl
+              ? "Ảnh sẽ được gửi khi bấm nút bên dưới."
               : "Bắt buộc — chụp tờ giấy bạn đã ghi tay trước khi hoàn tất."}
           </div>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-2 border-border px-4 py-2.5 font-semibold hover:bg-surface-2">
-          {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-          {url ? "Chụp lại" : "Tải ảnh"}
+          <Camera className="h-5 w-5" />
+          {previewUrl ? "Chụp lại" : "Tải ảnh"}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
         </label>
       </div>
-      {url && (
+      {previewUrl && (
         <div className="mt-3 flex flex-col gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt="Ghi chú số điện" className="max-h-64 rounded-xl object-contain" />
+          <img src={previewUrl} alt="Ghi chú số điện" className="max-h-64 rounded-xl object-contain" />
           <button
             type="button"
-            onClick={remove}
-            disabled={removing}
-            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-danger disabled:opacity-50"
+            onClick={onClear}
+            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-danger"
           >
-            {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            <Trash2 className="h-4 w-4" />
             Xoá ảnh
           </button>
         </div>

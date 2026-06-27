@@ -8,6 +8,7 @@ import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { MonthSwitcher } from "./month-switcher";
 import { ThemeToggle } from "./theme-toggle";
+import { UiScaleApplier } from "./ui-scale-applier";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   // read the email from the locally-cached session (no network round-trip)
@@ -20,6 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <MonthProvider>
+      <UiScaleApplier />
       <div className="flex min-h-screen">
         <Sidebar userEmail={userEmail} />
         <div className="flex min-w-0 flex-1 flex-col">
