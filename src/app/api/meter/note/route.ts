@@ -7,6 +7,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // JSON body { monthId, remove: true } clears the note photo
+  if (request.headers.get("content-type")?.includes("application/json")) {
+    const body = (await request.json()) as { monthId?: string; remove?: boolean };
+    if (typeof body.monthId !== "string" || !body.remove) {
+      return NextResponse.json({ error: "bad_request" }, { status: 400 });
+    }
+    const sb = createServiceClient();
+    const { error } = await sb
+      .from("months")
+      .update({ meter_note_photo_url: null })
+      .eq("id", body.monthId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, url: null });
+  }
+
   const form = await request.formData();
   const file = form.get("file");
   const monthId = form.get("monthId");

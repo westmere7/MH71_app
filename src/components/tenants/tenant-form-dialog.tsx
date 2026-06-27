@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
-import { upsertTenant, updateRoomRent, type TenantInput } from "@/lib/mutations";
+import { upsertTenant, updateRoomRent, reactivateBill, type TenantInput } from "@/lib/mutations";
 import { uploadImage } from "@/lib/upload";
-import { qk } from "@/lib/queries";
+import { qk, useSettings } from "@/lib/queries";
 import { formatVND } from "@/lib/format";
 import type { Tenant } from "@/lib/supabase/types";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export function TenantFormDialog({
   tenant,
   defaultRent,
   billId,
+  billVacant,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -37,8 +38,10 @@ export function TenantFormDialog({
   tenant: Tenant | null;
   defaultRent: number;
   billId?: string;
+  billVacant?: boolean;
 }) {
   const qc = useQueryClient();
+  const trashFee = useSettings().data?.trash_fee ?? 50000;
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [moveIn, setMoveIn] = React.useState("");
@@ -73,10 +76,17 @@ export function TenantFormDialog({
         same_household: tenant?.same_household ?? false,
         camera_access: cameraAccess,
       };
-      await upsertTenant(input);
-      // base price is the same field as in "Thiết lập giá" (rooms.default_rent);
-      // also sync the current bill so the visible total updates.
-      if (basePrice !== defaultRent) await updateRoomRent(roomId, basePrice, billId);
+      const saved = await upsertTenant(input);
+      // base price is the same field as in "Thiết lập giá" (rooms.default_rent).
+      const reactivating = !tenant && !!billVacant && !!billId;
+      if (basePrice !== defaultRent) {
+        // sync the bill's room_fee too, unless we're about to reactivate it below
+        await updateRoomRent(roomId, basePrice, reactivating ? undefined : billId);
+      }
+      // adding a tenant to an empty room turns the bill back on (unpaid + fees)
+      if (reactivating && saved) {
+        await reactivateBill(billId!, basePrice, trashFee, saved.id, input.name);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.tenants });

@@ -17,19 +17,12 @@ export async function updateBillStatus(
   amountPaid: number | null = null,
 ) {
   const sb = getSupabaseBrowser();
-  // Setting a room to "Trống" wipes ALL of that month's info for the room
-  // (tenant, readings, fees) — only reading_old is kept so the meter stays
-  // continuous if a new tenant moves in later. The status log is preserved.
+  // Setting a room to "Trống" clears the tenant + rent/trash for that month,
+  // but KEEPS the electricity (reading_old/new) so tiền điện is still shown,
+  // and keeps the status log.
   const base: Record<string, unknown> =
     status === "vacant"
-      ? {
-          payment_status: status,
-          tenant_id: null,
-          tenant_name: null,
-          reading_new: null,
-          room_fee: 0,
-          trash_fee: 0,
-        }
+      ? { payment_status: status, tenant_id: null, tenant_name: null, room_fee: 0, trash_fee: 0 }
       : { payment_status: status };
 
   // Try with amount_paid; gracefully fall back if migration 0005 isn't applied yet.
@@ -54,6 +47,31 @@ export async function updateBillFields(
 }
 
 // ---- Tenants ----
+/** Re-activate a vacant room's bill when a new tenant moves in. */
+export async function reactivateBill(
+  billId: string,
+  roomFee: number,
+  trashFee: number,
+  tenantId: string,
+  tenantName: string,
+) {
+  const sb = getSupabaseBrowser();
+  return unwrap(
+    await sb
+      .from("bills")
+      .update({
+        payment_status: "unpaid",
+        room_fee: roomFee,
+        trash_fee: trashFee,
+        tenant_id: tenantId,
+        tenant_name: tenantName,
+      })
+      .eq("id", billId)
+      .select()
+      .single(),
+  );
+}
+
 export interface TenantInput {
   id?: string;
   room_id: string;

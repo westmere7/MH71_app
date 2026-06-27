@@ -41,14 +41,12 @@ export function TenantRow({
   tenant,
   month,
   buildingName,
-  tenancyLabel,
 }: {
   room: Room;
   bill: Bill | null;
   tenant: Tenant | null;
   month: MonthRow;
   buildingName: string;
-  tenancyLabel?: string | null;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = React.useState(false);
@@ -153,12 +151,13 @@ export function TenantRow({
   // legacy "partial" (Còn nợ) bills are shown as "Chưa thanh toán" now
   const shownStatus: PaymentStatus =
     bill?.payment_status === "partial" ? "unpaid" : (bill?.payment_status ?? "unpaid");
+  // a vacant room's status can't be changed until a tenant is added ("Thêm khách")
   const statusEl = bill ? (
     <div onClick={(e) => e.stopPropagation()}>
       <StatusMenu
         status={shownStatus}
         onSelect={onStatusSelect}
-        disabled={statusMut.isPending || checkoutMut.isPending}
+        disabled={vacant || statusMut.isPending || checkoutMut.isPending}
       />
     </div>
   ) : (
@@ -216,7 +215,6 @@ export function TenantRow({
                   ) : (
                     <span>Chưa có SĐT</span>
                   )}
-                  {tenancyLabel && <span>• {tenancyLabel}</span>}
                 </div>
               )}
             </div>
@@ -250,9 +248,24 @@ export function TenantRow({
                 </Button>
               </div>
             ) : vacant ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-muted">Phòng đang trống — chưa có khách thuê.</p>
-                <div className="flex gap-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <BreakdownRow
+                    label="Tiền điện"
+                    hint={`${formatNumber(bill.units)} số × ${formatNumber(bill.electricity_rate)}đ`}
+                    value={formatVND(bill.electricity_amount)}
+                  />
+                  <div className="mt-1 flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
+                    <span className="font-bold">Tổng cộng</span>
+                    <span className="text-lg font-extrabold text-primary">
+                      {formatVND(bill.total)}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted">
+                  Phòng đang trống — thêm khách để thu tiền phòng &amp; rác.
+                </p>
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
                     <UserPlus className="h-4 w-4" />
                     Thêm khách
@@ -357,6 +370,7 @@ export function TenantRow({
         tenant={tenant}
         defaultRent={room.default_rent}
         billId={bill?.id}
+        billVacant={vacant}
       />
       {bill && (
         <PaymentDialog

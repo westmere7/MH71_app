@@ -10,6 +10,7 @@ import {
   Camera,
   CheckCircle2,
   Lock,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -137,6 +138,18 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
 /* ------------------------------ form ------------------------------- */
 function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   const [submitting, setSubmitting] = React.useState(false);
+  // rooms whose entered reading is invalid (smaller than số cũ) — block submit
+  const [blocked, setBlocked] = React.useState<Record<string, boolean>>({});
+  const [photoUrl, setPhotoUrl] = React.useState<string | null>(
+    data.month?.meter_note_photo_url ?? null,
+  );
+
+  const setRoomBlocked = React.useCallback((id: string, isBlocked: boolean) => {
+    setBlocked((prev) => {
+      if (!!prev[id] === isBlocked) return prev;
+      return { ...prev, [id]: isBlocked };
+    });
+  }, []);
 
   if (!data.month) {
     return (
@@ -150,7 +163,12 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   const month = data.month;
   const done = month.meter_status === "xong";
 
+  const hasBlocked = Object.values(blocked).some(Boolean);
+  const hasPhoto = !!photoUrl;
+  const canSubmit = !submitting && hasPhoto && !hasBlocked;
+
   async function submit() {
+    if (!canSubmit) return;
     setSubmitting(true);
     const res = await fetch("/api/meter/submit", {
       method: "POST",
@@ -190,15 +208,23 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
 
       <div className="flex flex-col gap-3">
         {data.rows.map((row) => (
-          <MeterRow key={row.id} row={row} />
+          <MeterRow key={row.id} row={row} onBlockingChange={setRoomBlocked} />
         ))}
       </div>
 
-      <NoteUpload monthId={month.id} existing={month.meter_note_photo_url} />
+      <NoteUpload monthId={month.id} url={photoUrl} onChange={setPhotoUrl} />
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface/95 p-4 backdrop-blur">
-        <div className="mx-auto max-w-2xl">
-          <Button onClick={submit} disabled={submitting} size="lg" className="w-full">
+        <div className="mx-auto flex max-w-2xl flex-col gap-2">
+          {!canSubmit && !submitting && (
+            <p className="flex items-center justify-center gap-1.5 text-center text-sm font-semibold text-danger">
+              <TriangleAlert className="h-4 w-4 shrink-0" />
+              {hasBlocked
+                ? "Có phòng nhập số mới nhỏ hơn số cũ — sửa lại trước khi hoàn tất."
+                : "Cần tải ảnh giấy ghi số điện trước khi hoàn tất."}
+            </p>
+          )}
+          <Button onClick={submit} disabled={!canSubmit} size="lg" className="w-full">
             {submitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
@@ -212,7 +238,13 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   );
 }
 
-function MeterRow({ row }: { row: Row }) {
+function MeterRow({
+  row,
+  onBlockingChange,
+}: {
+  row: Row;
+  onBlockingChange: (id: string, blocked: boolean) => void;
+}) {
   const [value, setValue] = React.useState<string>(
     row.reading_new != null ? String(row.reading_new) : "",
   );
@@ -220,11 +252,15 @@ function MeterRow({ row }: { row: Row }) {
 
   const num = value === "" ? null : Number(value);
   const valid = num != null && !Number.isNaN(num);
-  const delta = valid ? num - row.reading_old : null;
+  const delta = valid ? num! - row.reading_old : null;
   const cost = delta != null && delta > 0 ? delta * row.electricity_rate : 0;
 
+  // a "blocking" row is a typed-in reading that is invalid (NaN or below số cũ).
+  // these can't be saved and prevent the whole month from being submitted.
+  const blocking = value !== "" && (!valid || num! < row.reading_old);
+
   let warn: { tone: "danger" | "warning" | "info"; msg: string } | null = null;
-  if (valid && num < row.reading_old) {
+  if (valid && num! < row.reading_old) {
     warn = { tone: "danger", msg: "Số mới NHỎ HƠN số cũ — kiểm tra lại!" };
   } else if (delta != null && delta > 1000) {
     warn = { tone: "warning", msg: `Tăng bất thường: ${formatNumber(delta)} số` };
@@ -232,8 +268,16 @@ function MeterRow({ row }: { row: Row }) {
     warn = { tone: "info", msg: "Không thay đổi so với tháng trước" };
   }
 
+  React.useEffect(() => {
+    onBlockingChange(row.id, blocking);
+  }, [blocking, row.id, onBlockingChange]);
+
   async function save() {
-    if (value !== "" && !valid) return;
+    // never persist an invalid reading; leave it flagged for the manager to fix
+    if (blocking) {
+      setStatus("error");
+      return;
+    }
     setStatus("saving");
     const res = await fetch("/api/meter/reading", {
       method: "POST",
@@ -273,9 +317,13 @@ function MeterRow({ row }: { row: Row }) {
           />
         </div>
         <div className="w-6 shrink-0">
-          {status === "saving" && <Loader2 className="h-5 w-5 animate-spin text-muted" />}
-          {status === "saved" && <Check className="h-5 w-5 text-success" />}
-          {status === "error" && <AlertTriangle className="h-5 w-5 text-danger" />}
+          {status === "saving" ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted" />
+          ) : blocking || status === "error" ? (
+            <AlertTriangle className="h-5 w-5 text-danger" />
+          ) : status === "saved" ? (
+            <Check className="h-5 w-5 text-success" />
+          ) : null}
         </div>
       </div>
 
@@ -310,13 +358,15 @@ function MeterRow({ row }: { row: Row }) {
 
 function NoteUpload({
   monthId,
-  existing,
+  url,
+  onChange,
 }: {
   monthId: string;
-  existing: string | null;
+  url: string | null;
+  onChange: (url: string | null) => void;
 }) {
-  const [url, setUrl] = React.useState<string | null>(existing);
   const [uploading, setUploading] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -327,32 +377,66 @@ function NoteUpload({
     form.append("monthId", monthId);
     const res = await fetch("/api/meter/note", { method: "POST", body: form });
     setUploading(false);
+    e.target.value = "";
     if (res.ok) {
       const json = await res.json();
-      setUrl(json.url);
+      onChange(json.url);
       toast.success("Đã tải ảnh ghi chú");
     } else {
       toast.error("Tải ảnh thất bại.");
     }
   }
 
+  async function remove() {
+    setRemoving(true);
+    const res = await fetch("/api/meter/note", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ monthId, remove: true }),
+    });
+    setRemoving(false);
+    if (res.ok) {
+      onChange(null);
+      toast.success("Đã xoá ảnh");
+    } else {
+      toast.error("Xoá ảnh thất bại.");
+    }
+  }
+
   return (
-    <Card className="mt-4 p-4">
+    <Card className={cn("mt-4 p-4", !url && "border-danger/40 bg-danger-surface/40")}>
       <div className="flex items-center gap-3">
-        <Camera className="h-5 w-5 text-primary" />
+        <Camera className={cn("h-5 w-5", url ? "text-primary" : "text-danger")} />
         <div className="flex-1">
-          <div className="font-semibold">Ảnh giấy ghi số điện</div>
-          <div className="text-sm text-muted">Chụp lại tờ giấy bạn đã ghi tay (không bắt buộc)</div>
+          <div className="font-semibold">
+            Ảnh giấy ghi số điện <span className="text-danger">*</span>
+          </div>
+          <div className="text-sm text-muted">
+            {url
+              ? "Chụp lại tờ giấy bạn đã ghi tay."
+              : "Bắt buộc — chụp tờ giấy bạn đã ghi tay trước khi hoàn tất."}
+          </div>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-2 border-border px-4 py-2.5 font-semibold hover:bg-surface-2">
           {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-          Tải ảnh
+          {url ? "Chụp lại" : "Tải ảnh"}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
         </label>
       </div>
       {url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="Ghi chú số điện" className="mt-3 max-h-64 rounded-xl object-contain" />
+        <div className="mt-3 flex flex-col gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Ghi chú số điện" className="max-h-64 rounded-xl object-contain" />
+          <button
+            type="button"
+            onClick={remove}
+            disabled={removing}
+            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-danger disabled:opacity-50"
+          >
+            {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Xoá ảnh
+          </button>
+        </div>
       )}
     </Card>
   );

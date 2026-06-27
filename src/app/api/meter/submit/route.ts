@@ -16,6 +16,28 @@ export async function POST(request: Request) {
   if (!body.monthId) return NextResponse.json({ error: "missing_month" }, { status: 400 });
 
   const sb = createServiceClient();
+
+  // guard: a note photo is required, and no reading may be below its số cũ
+  const { data: month } = await sb
+    .from("months")
+    .select("meter_note_photo_url")
+    .eq("id", body.monthId)
+    .single();
+  if (!month?.meter_note_photo_url) {
+    return NextResponse.json({ error: "photo_required" }, { status: 400 });
+  }
+  const { data: bills } = await sb
+    .from("bills")
+    .select("reading_old, reading_new")
+    .eq("month_id", body.monthId);
+  const hasInvalid = (bills ?? []).some(
+    (b: { reading_old: number; reading_new: number | null }) =>
+      b.reading_new != null && b.reading_new < b.reading_old,
+  );
+  if (hasInvalid) {
+    return NextResponse.json({ error: "invalid_reading" }, { status: 400 });
+  }
+
   // record completion + timestamp; gracefully fall back if 0006 isn't applied yet
   let { error } = await sb
     .from("months")

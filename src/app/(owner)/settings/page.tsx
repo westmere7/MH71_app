@@ -88,7 +88,7 @@ function AddRemoveMonthCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center gap-2">
+      <CardHeader className="flex items-center gap-2">
         <CalendarPlus className="h-5 w-5 text-primary" />
         <CardTitle>Thêm / xoá tháng</CardTitle>
       </CardHeader>
@@ -208,7 +208,7 @@ function MeterExpenseCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center gap-2">
+      <CardHeader className="flex items-center gap-2">
         <Zap className="h-5 w-5 text-primary" />
         <CardTitle>Tiền điện & chi phí khác — {monthLabel(month.year, month.month)}</CardTitle>
       </CardHeader>
@@ -304,8 +304,7 @@ function MeterExpenseCard({
             placeholder="0"
           />
           <p className="text-sm text-muted">
-            EVN, rác, internet… — Lợi nhuận = Tổng thu − Chi phí khác. “Thu tiền” tự động theo số
-            phòng đã thanh toán.
+            Các chi phí thanh toán bên ngoài khác như internet, dịch vụ, v.v.
           </p>
         </div>
       </CardContent>

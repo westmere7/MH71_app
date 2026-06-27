@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Search } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { useRooms, useCurrentTenants, useBills, useAllBills } from "@/lib/queries";
+import { useRooms, useCurrentTenants, useBills } from "@/lib/queries";
 import { TenantRow } from "@/components/tenants/tenant-row";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,51 +31,13 @@ function matchesFilter(status: PaymentStatus | undefined, f: Filter): boolean {
 }
 
 export default function TenantsPage() {
-  const { selectedMonth, settings, months, isLoading } = useMonthCtx();
+  const { selectedMonth, settings, isLoading } = useMonthCtx();
   const roomsQ = useRooms();
   const tenantsQ = useCurrentTenants();
   const billsQ = useBills(selectedMonth?.id ?? null);
-  const allBillsQ = useAllBills();
 
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
-
-  // earliest month each tenant name appears in (for tenancy duration when there's
-  // no "ngày vào ở"). Keyed by lowercased name -> year*12 + month.
-  const nameStart = React.useMemo(() => {
-    const monthOf = new Map(months.map((m) => [m.id, m.year * 12 + m.month]));
-    const map = new Map<string, number>();
-    for (const b of allBillsQ.data ?? []) {
-      if (!b.tenant_name) continue;
-      const idx = monthOf.get(b.month_id);
-      if (idx == null) continue;
-      const key = b.tenant_name.trim().toLowerCase();
-      const cur = map.get(key);
-      if (cur == null || idx < cur) map.set(key, idx);
-    }
-    return map;
-  }, [allBillsQ.data, months]);
-
-  const tenancyLabel = React.useCallback(
-    (tenant: Tenant | null): string | null => {
-      if (!tenant || !selectedMonth) return null;
-      let startIdx: number | undefined;
-      if (tenant.move_in_date) {
-        const [y, m] = tenant.move_in_date.split("-").map(Number);
-        if (y && m) startIdx = y * 12 + m;
-      } else {
-        startIdx = nameStart.get(tenant.name.trim().toLowerCase());
-      }
-      if (startIdx == null) return null;
-      const asOf = selectedMonth.year * 12 + selectedMonth.month;
-      const n = Math.max(asOf - startIdx, 0);
-      const sm = ((startIdx - 1) % 12) + 1;
-      const sy = String(Math.floor((startIdx - 1) / 12)).slice(2);
-      const start = `T${sm}/${sy}`;
-      return n <= 0 ? `mới vào (${start})` : `vào ${start} • ${n} tháng`;
-    },
-    [nameStart, selectedMonth],
-  );
 
   const billByRoom = React.useMemo(() => {
     const m = new Map<string, Bill>();
@@ -176,7 +138,6 @@ export default function TenantsPage() {
               tenant={tenantByRoom.get(room.id) ?? null}
               month={selectedMonth}
               buildingName={settings?.building_name ?? "MH71"}
-              tenancyLabel={tenancyLabel(tenantByRoom.get(room.id) ?? null)}
             />
           ))}
         </div>
