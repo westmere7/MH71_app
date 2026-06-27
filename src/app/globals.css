@@ -15,12 +15,12 @@
   --muted-foreground: #5e6a86;
   --border: #e3e7f1;
   --input: #e3e7f1;
-  --ring: #16b9d9;
+  --ring: #25c8e8;
 
   --brand: #1b2a4a;          /* navy headers */
   --brand-foreground: #ffffff;
-  --primary: #14b6d6;        /* cyan accent */
-  --primary-foreground: #ffffff;
+  --primary: #25c8e8;        /* cyan accent — dark text reads on it */
+  --primary-foreground: #06212a;
 
   --success: #16a06a;
   --success-surface: #e2f6ee;

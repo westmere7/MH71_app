@@ -133,13 +133,6 @@ export default function DashboardPage() {
             tone="info"
           />
           <StatCard
-            label="Đã thanh toán"
-            value={`${cur.paidCount}/${cur.roomCount}`}
-            sub={`${collectionPct}% đã thu`}
-            icon={CheckCircle2}
-            tone="success"
-          />
-          <StatCard
             label="Tổng sẽ thu"
             value={formatVND(cur.totalBilled)}
             icon={Wallet}
