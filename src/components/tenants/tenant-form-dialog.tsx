@@ -14,7 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
-import { upsertTenant, updateRoomRent, reactivateBill, type TenantInput } from "@/lib/mutations";
+import {
+  upsertTenant,
+  updateRoomRent,
+  reactivateBill,
+  updateBillTenant,
+  type TenantInput,
+} from "@/lib/mutations";
 import { uploadImage } from "@/lib/upload";
 import { qk, useSettings } from "@/lib/queries";
 import { formatVND } from "@/lib/format";
@@ -50,6 +56,7 @@ export function TenantFormDialog({
   const [cameraAccess, setCameraAccess] = React.useState(false);
   const [basePrice, setBasePrice] = React.useState(defaultRent);
   const [uploading, setUploading] = React.useState(false);
+  const [viewOpen, setViewOpen] = React.useState(false);
 
   // reset form whenever the dialog opens for a (different) tenant
   React.useEffect(() => {
@@ -86,13 +93,17 @@ export function TenantFormDialog({
       // adding a tenant to an empty room turns the bill back on (unpaid + fees)
       if (reactivating && saved) {
         await reactivateBill(billId!, basePrice, trashFee, saved.id, input.name);
+      } else if (billId && saved) {
+        // editing an existing tenant: snapshot the name onto THIS month's bill
+        // only — past/future months keep their own record
+        await updateBillTenant(billId, saved.id, input.name);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.tenants });
       qc.invalidateQueries({ queryKey: qk.rooms });
       qc.invalidateQueries({ queryKey: ["bills"] });
-      toast.success(tenant ? "Đã cập nhật khách thuê" : "Đã thêm khách thuê");
+      toast.success(tenant ? "Đã cập nhật người thuê" : "Đã thêm người thuê");
       onOpenChange(false);
     },
     onError: () => toast.error("Lưu không thành công."),
@@ -117,17 +128,24 @@ export function TenantFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {tenant ? "Sửa thông tin khách" : "Thêm khách thuê"} — {roomCode}
+            {tenant ? "Sửa thông tin người thuê" : "Thêm người thuê"} — {roomCode}
           </DialogTitle>
           <DialogDescription>
-            Để trống ảnh sẽ hiển thị chữ viết tắt tên khách.
+            Để trống ảnh sẽ hiển thị chữ viết tắt tên người thuê.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           {/* photo */}
           <div className="flex items-center gap-4">
-            <Avatar name={name} photoUrl={photoUrl} size={64} />
+            <button
+              type="button"
+              onClick={() => photoUrl && setViewOpen(true)}
+              className={photoUrl ? "cursor-zoom-in" : "cursor-default"}
+              aria-label={photoUrl ? "Xem ảnh" : undefined}
+            >
+              <Avatar name={name} photoUrl={photoUrl} size={64} />
+            </button>
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-2 border-border px-4 py-2.5 text-base font-semibold hover:bg-surface-2">
               {uploading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -149,7 +167,7 @@ export function TenantFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="t-name">Tên khách *</Label>
+            <Label htmlFor="t-name">Tên người thuê *</Label>
             <Input id="t-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
@@ -213,6 +231,23 @@ export function TenantFormDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* tap the avatar to view the photo larger */}
+      {photoUrl && (
+        <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{name || "Ảnh người thuê"}</DialogTitle>
+            </DialogHeader>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoUrl}
+              alt={name || "Ảnh người thuê"}
+              className="max-h-[70vh] w-full rounded-xl object-contain"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }

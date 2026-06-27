@@ -72,6 +72,24 @@ export async function reactivateBill(
   );
 }
 
+/** Sync ONLY the given month's bill snapshot (name/id) when a tenant is edited.
+ *  Other months keep their own snapshot — edits never propagate sideways/back. */
+export async function updateBillTenant(
+  billId: string,
+  tenantId: string | null,
+  tenantName: string | null,
+) {
+  const sb = getSupabaseBrowser();
+  return unwrap(
+    await sb
+      .from("bills")
+      .update({ tenant_id: tenantId, tenant_name: tenantName })
+      .eq("id", billId)
+      .select()
+      .single(),
+  );
+}
+
 export interface TenantInput {
   id?: string;
   room_id: string;
@@ -229,7 +247,8 @@ export async function createNextMonth(): Promise<MonthRow> {
       .single(),
   ) as MonthRow;
 
-  // previous bills indexed by room
+  // previous bills indexed by room — the new month is a strict clone of these,
+  // NOT of the rooms/settings defaults (which a since-deleted month may have edited)
   const prevByRoom = new Map<string, Bill>();
   if (latest) {
     const { data: prevBills } = await sb.from("bills").select("*").eq("month_id", latest.id);
@@ -240,19 +259,40 @@ export async function createNextMonth(): Promise<MonthRow> {
 
   const rows = roomList.map((r) => {
     const prev = prevByRoom.get(r.id);
-    const tenant = tenantByRoom.get(r.id);
-    const readingOld = prev ? (prev.reading_new ?? prev.reading_old) : 0;
+
+    // No previous bill for this room (very first month, or a newly-added room):
+    // fall back to the room/settings defaults + current tenant.
+    if (!prev) {
+      const tenant = tenantByRoom.get(r.id);
+      return {
+        month_id: newMonth.id,
+        room_id: r.id,
+        tenant_id: tenant?.id ?? null,
+        tenant_name: tenant?.name ?? null,
+        reading_old: 0,
+        reading_new: null,
+        electricity_rate: r.default_rate ?? s.electricity_rate,
+        room_fee: r.default_rent,
+        trash_fee: r.default_trash ?? s.trash_fee,
+        payment_status: (tenant ? "unpaid" : "vacant") as PaymentStatus,
+      };
+    }
+
+    // Otherwise mirror the previous month EXACTLY — every value comes straight
+    // from the previous bill (never the live/edited tenant or pricing tables);
+    // only roll the meter reading forward and reset reading + payment status.
+    const hasTenant = prev.tenant_id != null;
     return {
       month_id: newMonth.id,
       room_id: r.id,
-      tenant_id: tenant?.id ?? null,
-      tenant_name: tenant?.name ?? null,
-      reading_old: readingOld,
+      tenant_id: prev.tenant_id,
+      tenant_name: prev.tenant_name,
+      reading_old: prev.reading_new ?? prev.reading_old,
       reading_new: null,
-      electricity_rate: r.default_rate ?? s.electricity_rate,
-      room_fee: r.default_rent,
-      trash_fee: r.default_trash ?? s.trash_fee,
-      payment_status: (tenant ? "unpaid" : "vacant") as PaymentStatus,
+      electricity_rate: prev.electricity_rate,
+      room_fee: prev.room_fee,
+      trash_fee: prev.trash_fee,
+      payment_status: (hasTenant ? "unpaid" : "vacant") as PaymentStatus,
     };
   });
 

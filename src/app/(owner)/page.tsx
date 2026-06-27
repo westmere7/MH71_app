@@ -24,16 +24,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatVND, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const CHART_SPANS = [
-  { key: "all", label: "Tất cả", months: 0 },
-  { key: "year", label: "1 năm", months: 12 },
-  { key: "half", label: "6 tháng", months: 6 },
+const CHART_MODES = [
+  { key: "all", label: "Tất cả" },
+  { key: "year", label: "Theo năm" },
+  { key: "half", label: "Theo nửa năm" },
 ] as const;
-type ChartSpan = (typeof CHART_SPANS)[number]["key"];
+type ChartMode = (typeof CHART_MODES)[number]["key"];
 
 export default function DashboardPage() {
   const { months, selectedMonth, isLoading } = useMonthCtx();
-  const [chartSpan, setChartSpan] = React.useState<ChartSpan>("all");
+  const [chartMode, setChartMode] = React.useState<ChartMode>("all");
+  const [yearSel, setYearSel] = React.useState<number | null>(null);
+  const [halfSel, setHalfSel] = React.useState<string | null>(null); // "YYYY-1" | "YYYY-2"
   const allBillsQ = useAllBills();
   const allBills = React.useMemo(() => allBillsQ.data ?? [], [allBillsQ.data]);
 
@@ -73,7 +75,13 @@ export default function DashboardPage() {
       const label = `T${m.month}/${String(m.year).slice(2)}`;
       totalRevenue += s.totalBilled;
       totalProfit += s.profitFull;
-      points.push({ label, doanhthu: s.totalBilled, loinhuan: s.profitFull });
+      points.push({
+        label,
+        year: m.year,
+        month: m.month,
+        doanhthu: s.totalBilled,
+        loinhuan: s.profitFull,
+      });
       if (s.totalBilled > 0) {
         if (!highest || s.totalBilled > highest.v) highest = { label, v: s.totalBilled };
         if (!lowest || s.totalBilled < lowest.v) lowest = { label, v: s.totalBilled };
@@ -98,10 +106,28 @@ export default function DashboardPage() {
   const collectionPct =
     cur.totalBilled > 0 ? Math.round((cur.collected / cur.totalBilled) * 100) : 0;
 
-  // history chart, limited to the selected span (points are oldest -> newest)
-  const spanMonths = CHART_SPANS.find((s) => s.key === chartSpan)?.months ?? 0;
-  const chartPoints =
-    spanMonths > 0 ? longTerm.points.slice(-spanMonths) : longTerm.points;
+  // history chart span — "all", a specific year, or a specific half-year
+  const years = Array.from(new Set(months.map((m) => m.year))).sort((a, b) => b - a);
+  const halfKeys = Array.from(
+    new Set(months.map((m) => `${m.year}-${m.month <= 6 ? 1 : 2}`)),
+  ).sort((a, b) => b.localeCompare(a)); // newest first
+  const halfLabel = (key: string) => {
+    const [y, h] = key.split("-");
+    return `Nửa ${h === "1" ? "đầu" : "cuối"} ${y}`;
+  };
+
+  const effYear = yearSel ?? years[0] ?? selectedMonth.year;
+  const effHalf = halfSel ?? halfKeys[0] ?? "";
+
+  let chartPoints = longTerm.points;
+  if (chartMode === "year") {
+    chartPoints = longTerm.points.filter((p) => p.year === effYear);
+  } else if (chartMode === "half") {
+    const [hy, hh] = effHalf.split("-");
+    chartPoints = longTerm.points.filter(
+      (p) => p.year === Number(hy) && (hh === "1" ? p.month <= 6 : p.month >= 7),
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -142,7 +168,7 @@ export default function DashboardPage() {
           <StatCard
             label="Tỉ lệ lấp đầy"
             value={`${cur.roomCount ? Math.round((cur.occupied / cur.roomCount) * 100) : 0}%`}
-            sub={`${cur.occupied}/${cur.roomCount} phòng có khách`}
+            sub={`${cur.occupied}/${cur.roomCount} phòng có người thuê`}
             icon={Home}
             tone="info"
           />
@@ -195,7 +221,7 @@ export default function DashboardPage() {
 
       {/* ---------------- long term ---------------- */}
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-extrabold tracking-tight">Tổng quan dài hạn</h2>
+        <h2 className="text-xl font-extrabold tracking-tight">Tổng quan</h2>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <StatCard
@@ -237,22 +263,50 @@ export default function DashboardPage() {
           <CardContent className="p-5 sm:p-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-bold">Lịch sử doanh thu &amp; lợi nhuận</h3>
-              <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-                {CHART_SPANS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => setChartSpan(s.key)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                      chartSpan === s.key
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted hover:text-foreground",
-                    )}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 rounded-full bg-surface-2 p-1">
+                  {CHART_MODES.map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setChartMode(m.key)}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                        chartMode === m.key
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted hover:text-foreground",
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                {chartMode === "year" && (
+                  <select
+                    value={effYear}
+                    onChange={(e) => setYearSel(Number(e.target.value))}
+                    className="rounded-full border-2 border-border bg-surface px-3 py-1 text-xs font-semibold"
                   >
-                    {s.label}
-                  </button>
-                ))}
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        Năm {y}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {chartMode === "half" && (
+                  <select
+                    value={effHalf}
+                    onChange={(e) => setHalfSel(e.target.value)}
+                    className="rounded-full border-2 border-border bg-surface px-3 py-1 text-xs font-semibold"
+                  >
+                    {halfKeys.map((k) => (
+                      <option key={k} value={k}>
+                        {halfLabel(k)}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
             {chartPoints.length > 0 ? (

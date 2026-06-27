@@ -42,15 +42,20 @@ export function TenantRow({
   tenant,
   month,
   buildingName,
+  open,
+  onOpenChange,
+  dimmed,
 }: {
   room: Room;
   bill: Bill | null;
   tenant: Tenant | null;
   month: MonthRow;
   buildingName: string;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  dimmed?: boolean;
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [formOpen, setFormOpen] = React.useState(false);
   const [payOpen, setPayOpen] = React.useState(false);
@@ -109,7 +114,7 @@ export function TenantRow({
   function checkout() {
     if (
       confirm(
-        `Xác nhận phòng ${room.code} đã TRẢ PHÒNG?\n\nThông tin khách hiện tại sẽ được gỡ và phòng chuyển sang "Trống".`,
+        `Xác nhận phòng ${room.code} đã TRẢ PHÒNG?\n\nThông tin người thuê hiện tại sẽ được gỡ và phòng chuyển sang "Trống".`,
       )
     )
       checkoutMut.mutate();
@@ -130,11 +135,13 @@ export function TenantRow({
 
   const total = bill?.total ?? 0;
   const vacant = bill?.payment_status === "vacant";
-  const name = tenant?.name ?? bill?.tenant_name ?? null;
+  // the month's own record is authoritative; fall back to the live tenant only
+  // for legacy bills that were imported without a name snapshot
+  const name = bill?.tenant_name ?? tenant?.name ?? null;
   const displayName = !vacant && name ? name : "(Phòng trống)";
 
   function toggle() {
-    setOpen((o) => !o);
+    onOpenChange(!open);
   }
 
   // total + status are shown inline on desktop and on a second row on mobile.
@@ -171,8 +178,14 @@ export function TenantRow({
   );
 
   return (
-    <Card className="overflow-hidden">
-      <Collapsible open={open} onOpenChange={setOpen}>
+    <Card
+      className={cn(
+        "overflow-hidden transition-all duration-200",
+        open && "ring-2 ring-primary/40",
+        dimmed && "scale-[0.99] opacity-40",
+      )}
+    >
+      <Collapsible open={open} onOpenChange={onOpenChange}>
         <div
           role="button"
           tabIndex={0}
@@ -213,7 +226,7 @@ export function TenantRow({
             <div className="min-w-0 flex-1">
               {vacant ? (
                 <div className="text-sm text-muted">
-                  {'Phòng trống, nhấn "+" để thêm khách thuê mới'}
+                  {'Phòng trống, nhấn "+" để thêm người thuê mới'}
                 </div>
               ) : (
                 <>
@@ -261,7 +274,7 @@ export function TenantRow({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted">Tháng này chưa có hoá đơn cho phòng.</p>
                 <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
-                  {tenant ? "Sửa khách" : "Thêm khách"}
+                  {tenant ? "Sửa người thuê" : "Thêm người thuê"}
                 </Button>
               </div>
             ) : vacant ? (
@@ -285,12 +298,12 @@ export function TenantRow({
                   </div>
                 </div>
                 <p className="text-sm text-muted">
-                  Phòng đang trống — thêm khách để thu tiền phòng &amp; rác.
+                  Phòng đang trống — thêm người thuê để thu tiền phòng &amp; rác.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
                     <UserPlus className="h-4 w-4" />
-                    Thêm khách
+                    Thêm người thuê
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setLogOpen(true)}>
                     <History className="h-4 w-4" />
@@ -364,7 +377,7 @@ export function TenantRow({
                   ) : (
                     <Button size="sm" variant="outline" onClick={() => setFormOpen(true)}>
                       <UserPlus className="h-4 w-4" />
-                      Thêm khách
+                      Thêm người thuê
                     </Button>
                   )}
                   <Button size="sm" variant="ghost" onClick={() => setLogOpen(true)}>

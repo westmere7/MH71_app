@@ -38,6 +38,35 @@ export default function TenantsPage() {
 
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
+  // single-open accordion: the expanded card stays in focus, the rest dim out
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
+
+  // leave focus mode on Escape or a click outside the list (but not when a
+  // dropdown / dialog is open, or when clicking another card or its popovers)
+  React.useEffect(() => {
+    if (openId === null) return;
+    const overlayOpen = () =>
+      !!document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]');
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !overlayOpen()) setOpenId(null);
+    }
+    function onDown(e: PointerEvent) {
+      const t = e.target as Element | null;
+      if (!t || overlayOpen()) return;
+      if (listRef.current?.contains(t)) return; // a card handles its own toggle
+      if (t.closest('[role="menu"],[role="dialog"],[data-radix-popper-content-wrapper]')) return;
+      setOpenId(null);
+    }
+
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [openId]);
 
   const billByRoom = React.useMemo(() => {
     const m = new Map<string, Bill>();
@@ -129,7 +158,7 @@ export default function TenantsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div ref={listRef} className="flex flex-col gap-2.5">
           {rows.map((room) => (
             <TenantRow
               key={room.id}
@@ -138,6 +167,9 @@ export default function TenantsPage() {
               tenant={tenantByRoom.get(room.id) ?? null}
               month={selectedMonth}
               buildingName={settings?.building_name ?? "MH71"}
+              open={openId === room.id}
+              onOpenChange={(o) => setOpenId(o ? room.id : null)}
+              dimmed={openId !== null && openId !== room.id}
             />
           ))}
         </div>

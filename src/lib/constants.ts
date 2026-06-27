@@ -45,7 +45,7 @@ export const PAYMENT_STATUS: Record<PaymentStatus, StatusMeta> = {
     isPaid: false,
   },
   vacant: {
-    label: "Trống (chưa có khách)",
+    label: "Trống (chưa có người thuê)",
     short: "Trống",
     chip: "bg-surface-2 text-muted",
     dot: "bg-muted",

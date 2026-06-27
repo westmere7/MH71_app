@@ -15,6 +15,8 @@ import { formatVND, formatVNDShort } from "@/lib/format";
 
 export interface HistoryPoint {
   label: string;
+  year: number;
+  month: number;
   doanhthu: number;
   loinhuan: number;
 }
