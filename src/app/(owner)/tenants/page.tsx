@@ -92,18 +92,34 @@ export default function TenantsPage() {
   const rooms = roomsQ.data ?? [];
   const paidCount = (billsQ.data ?? []).filter((b) => isPaidStatus(b.payment_status)).length;
 
-  const rows = rooms.filter((room) => {
+  const q = search.trim().toLowerCase();
+  const matchesSearch = (room: (typeof rooms)[number]) => {
+    if (!q) return true;
     const bill = billByRoom.get(room.id);
     const tenant = tenantByRoom.get(room.id);
-    if (!matchesFilter(bill?.payment_status, filter)) return false;
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      room.code.toLowerCase().includes(q) ||
-      (tenant?.name ?? "").toLowerCase().includes(q) ||
-      (tenant?.phone ?? "").includes(q)
-    );
-  });
+    const name = (bill?.tenant_name ?? tenant?.name ?? "").toLowerCase();
+    const phone = bill?.tenant_phone ?? tenant?.phone ?? "";
+    return room.code.toLowerCase().includes(q) || name.includes(q) || phone.includes(q);
+  };
+
+  // rooms matching the search (ignoring the active filter) — used for chip counts
+  const searchMatched = rooms.filter(matchesSearch);
+  const filterCounts: Record<Filter, number> = {
+    all: searchMatched.length,
+    due: 0,
+    paid: 0,
+    vacant: 0,
+  };
+  for (const room of searchMatched) {
+    const st = billByRoom.get(room.id)?.payment_status;
+    if (matchesFilter(st, "due")) filterCounts.due++;
+    if (matchesFilter(st, "paid")) filterCounts.paid++;
+    if (matchesFilter(st, "vacant")) filterCounts.vacant++;
+  }
+
+  const rows = searchMatched.filter((room) =>
+    matchesFilter(billByRoom.get(room.id)?.payment_status, filter),
+  );
 
   const loading = isLoading || roomsQ.isLoading || billsQ.isLoading;
 
@@ -131,21 +147,32 @@ export default function TenantsPage() {
 
       {/* filters */}
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
-              filter === f.key
-                ? "bg-primary text-primary-foreground"
-                : "bg-surface-2 text-muted hover:text-foreground",
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+        {FILTERS.map((f) => {
+          const active = filter === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-surface-2 text-muted hover:text-foreground",
+              )}
+            >
+              {f.label}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-xs font-bold tabular-nums",
+                  active ? "bg-primary-foreground/20" : "bg-foreground/10",
+                )}
+              >
+                {filterCounts[f.key]}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
@@ -186,7 +213,11 @@ export default function TenantsPage() {
               month={selectedMonth}
               buildingName={settings?.building_name ?? "MH71"}
               open={openId === room.id}
-              onOpenChange={(o) => setOpenId(o ? room.id : null)}
+              onOpenChange={(o) =>
+                // opening while another card is focused just exits the focus
+                // first (one tap to defocus, another to open this one)
+                setOpenId((cur) => (o ? (cur && cur !== room.id ? null : room.id) : null))
+              }
               dimmed={openId !== null && openId !== room.id}
             />
             );
