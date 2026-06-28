@@ -45,6 +45,12 @@ export function formatDateTime(d: string | Date | null | undefined): string {
   return format(toDate(d), "dd.MM • HH:mm", { locale: vi });
 }
 
+/** longer, easier-to-read: "HH:mm • dd/MM/yyyy" */
+export function formatDateTimeLong(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  return format(toDate(d), "HH:mm • dd/MM/yyyy", { locale: vi });
+}
+
 /** "Tháng 6 / 2026" */
 export function monthLabel(year: number, month: number): string {
   return `Tháng ${month} / ${year}`;

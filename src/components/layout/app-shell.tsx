@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">
+          <main className="w-full flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">
             {children}
             <div className="mt-8 text-center text-xs text-muted/60 md:hidden">
               MH71 • phiên bản v{APP_VERSION}

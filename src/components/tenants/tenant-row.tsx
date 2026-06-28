@@ -47,6 +47,7 @@ export function TenantRow({
   open,
   onOpenChange,
   dimmed,
+  hideChevron,
 }: {
   room: Room;
   bill: Bill | null;
@@ -57,6 +58,7 @@ export function TenantRow({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   dimmed?: boolean;
+  hideChevron?: boolean; // when shown standalone in a dialog
 }) {
   const qc = useQueryClient();
   const { selectedLocked: locked } = useMonthCtx();
@@ -271,12 +273,14 @@ export function TenantRow({
               <div className="hidden sm:mx-3 sm:block sm:h-6 sm:w-px sm:bg-border/60" />
               <div className="flex justify-end sm:w-32 sm:justify-start">{statusEl}</div>
             </div>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 shrink-0 text-muted transition-transform",
-                open && "rotate-180",
-              )}
-            />
+            {!hideChevron && (
+              <ChevronDown
+                className={cn(
+                  "h-5 w-5 shrink-0 text-muted transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            )}
           </div>
         </div>
 

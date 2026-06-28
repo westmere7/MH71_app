@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SignOutButton } from "@/components/layout/sign-out-button";
+import { PricingCard } from "@/components/settings/pricing-card";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +45,7 @@ export default function SettingsPage() {
   const { selectedMonth, months, selectedLocked, setSelectedMonthId } = useMonthCtx();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-extrabold tracking-tight">Cài đặt</h1>
 
       <AddRemoveMonthCard
@@ -59,6 +60,13 @@ export default function SettingsPage() {
         }}
       />
 
+      {/* ---- month-specific settings (apply only to the selected month) ---- */}
+      <SectionHeader
+        title="Cài đặt theo tháng"
+        chip={selectedMonth ? monthLabel(selectedMonth.year, selectedMonth.month) : "—"}
+        tone="month"
+        hint="Chỉ ảnh hưởng tháng đang chọn — không thay đổi các tháng khác."
+      />
       {selectedMonth && (
         <MeterExpenseCard
           key={selectedMonth.id}
@@ -67,11 +75,17 @@ export default function SettingsPage() {
           locked={selectedLocked}
         />
       )}
+      {selectedMonth && <PricingCard />}
 
+      {/* ---- universal settings (apply everywhere) ---- */}
+      <SectionHeader
+        title="Cài đặt chung"
+        chip="mọi tháng"
+        tone="universal"
+        hint="Áp dụng cho toàn bộ ứng dụng."
+      />
       <LockCard qc={qc} />
-
       <DisplayCard qc={qc} />
-
       <Card>
         <CardHeader>
           <CardTitle>Tài khoản</CardTitle>
@@ -80,6 +94,37 @@ export default function SettingsPage() {
           <SignOutButton className="border-2 border-border" />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  chip,
+  tone,
+  hint,
+}: {
+  title: string;
+  chip: string;
+  tone: "month" | "universal";
+  hint: string;
+}) {
+  return (
+    <div className="mt-3 flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-muted">{title}</h2>
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-xs font-semibold",
+            tone === "month"
+              ? "bg-warning-surface text-warning"
+              : "bg-surface-2 text-muted",
+          )}
+        >
+          {chip}
+        </span>
+      </div>
+      <p className="text-xs text-muted">{hint}</p>
     </div>
   );
 }

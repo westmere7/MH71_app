@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Coins, Settings } from "lucide-react";
+import { Table, BarChart3, Users, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavItem {
@@ -8,10 +8,10 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/thong-ke", label: "Thống kê", icon: BarChart3 },
   { href: "/tenants", label: "Phòng thuê", icon: Users },
+  { href: "/", label: "Tổng quan", icon: Table },
   { href: "/settings", label: "Cài đặt", icon: Settings },
-  { href: "/gia", label: "Thiết lập giá", icon: Coins },
 ];
 
 // items shown in the mobile bottom bar

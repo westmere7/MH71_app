@@ -1,347 +1,214 @@
 "use client";
 
 import * as React from "react";
-import {
-  Home,
-  CheckCircle2,
-  Wallet,
-  Banknote,
-  TrendingUp,
-  CalendarRange,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Layers,
-  Zap,
-} from "lucide-react";
+import Link from "next/link";
+import { Users } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { useAllBills } from "@/lib/queries";
-import { computeMonthStats, pctChange } from "@/lib/finance";
-import type { Bill, MonthRow } from "@/lib/supabase/types";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { HistoryChart, type HistoryPoint } from "@/components/dashboard/history-chart";
+import { useRooms, useBills, useCurrentTenants, useAllTenants } from "@/lib/queries";
+import { TenantRow } from "@/components/tenants/tenant-row";
+import { StatusChip } from "@/components/tenants/status-menu";
+import { isPaidStatus } from "@/lib/constants";
+import { formatVND, formatNumber, formatDateTimeLong, monthLabel } from "@/lib/format";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatVND, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { Bill, Tenant } from "@/lib/supabase/types";
 
-const CHART_MODES = [
-  { key: "all", label: "Tất cả" },
-  { key: "year", label: "Theo năm" },
-  { key: "half", label: "Theo nửa năm" },
-] as const;
-type ChartMode = (typeof CHART_MODES)[number]["key"];
+// Read-only-at-a-glance overview (kiosk friendly). Tapping a row opens the full
+// editable tenant card in a dialog.
+export default function OverviewPage() {
+  const { selectedMonth, settings, isLoading } = useMonthCtx();
+  const roomsQ = useRooms();
+  const billsQ = useBills(selectedMonth?.id ?? null);
+  const tenantsQ = useCurrentTenants();
+  const allTenantsQ = useAllTenants();
 
-export default function DashboardPage() {
-  const { months, selectedMonth, isLoading } = useMonthCtx();
-  const [chartMode, setChartMode] = React.useState<ChartMode>("all");
-  const [yearSel, setYearSel] = React.useState<number | null>(null);
-  const [halfSel, setHalfSel] = React.useState<string | null>(null); // "YYYY-1" | "YYYY-2"
-  const allBillsQ = useAllBills();
-  const allBills = React.useMemo(() => allBillsQ.data ?? [], [allBillsQ.data]);
+  const [openRoomId, setOpenRoomId] = React.useState<string | null>(null);
 
-  const byMonth = React.useMemo(() => {
-    const map = new Map<string, Bill[]>();
-    for (const b of allBills) {
-      const arr = map.get(b.month_id) ?? [];
-      arr.push(b);
-      map.set(b.month_id, arr);
-    }
-    return map;
-  }, [allBills]);
+  const rooms = React.useMemo(
+    () => [...(roomsQ.data ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    [roomsQ.data],
+  );
+  const billByRoom = React.useMemo(() => {
+    const m = new Map<string, Bill>();
+    for (const b of billsQ.data ?? []) m.set(b.room_id, b);
+    return m;
+  }, [billsQ.data]);
+  const tenantById = React.useMemo(() => {
+    const m = new Map<string, Tenant>();
+    for (const t of allTenantsQ.data ?? []) m.set(t.id, t);
+    return m;
+  }, [allTenantsQ.data]);
+  const tenantByRoom = React.useMemo(() => {
+    const m = new Map<string, Tenant>();
+    for (const t of tenantsQ.data ?? []) m.set(t.room_id, t);
+    return m;
+  }, [tenantsQ.data]);
 
-  const monthStats = React.useCallback(
-    (m: MonthRow | null) => computeMonthStats(m ? byMonth.get(m.id) ?? [] : [], m),
-    [byMonth],
+  // the row's tenant = the person on the bill (by tenant_id), else current tenant
+  const tenantOf = React.useCallback(
+    (roomId: string, bill: Bill | null | undefined) =>
+      (bill?.tenant_id ? tenantById.get(bill.tenant_id) : undefined) ??
+      tenantByRoom.get(roomId) ??
+      null,
+    [tenantById, tenantByRoom],
   );
 
-  const cur = monthStats(selectedMonth);
-
-  // previous (older) month for the profit trend
-  const selIdx = months.findIndex((m) => m.id === selectedMonth?.id);
-  const prevMonth = selIdx >= 0 && selIdx < months.length - 1 ? months[selIdx + 1] : null;
-  const prev = prevMonth ? monthStats(prevMonth) : null;
-  const profitTrend = pctChange(cur.profitCurrent, prev?.profitCurrent ?? null);
-
-  // ---- long-term ----
-  const monthsAsc = React.useMemo(() => [...months].reverse(), [months]);
-  const longTerm = React.useMemo(() => {
-    let totalRevenue = 0;
-    let totalProfit = 0;
-    let highest: { label: string; v: number } | null = null;
-    let lowest: { label: string; v: number } | null = null;
-    const points: HistoryPoint[] = [];
-    for (const m of monthsAsc) {
-      const s = computeMonthStats(byMonth.get(m.id) ?? [], m);
-      const label = `T${m.month}/${String(m.year).slice(2)}`;
-      totalRevenue += s.totalBilled;
-      totalProfit += s.profitFull;
-      points.push({
-        label,
-        year: m.year,
-        month: m.month,
-        doanhthu: s.totalBilled,
-        loinhuan: s.profitFull,
-      });
-      if (s.totalBilled > 0) {
-        if (!highest || s.totalBilled > highest.v) highest = { label, v: s.totalBilled };
-        if (!lowest || s.totalBilled < lowest.v) lowest = { label, v: s.totalBilled };
-      }
-    }
-    return { totalRevenue, totalProfit, highest, lowest, points };
-  }, [monthsAsc, byMonth]);
-
-  const loading = isLoading || allBillsQ.isLoading;
-
-  if (loading) return <DashboardSkeleton />;
-
-  if (!selectedMonth) {
-    return (
-      <EmptyState
-        title="Chưa có dữ liệu tháng"
-        message="Vào mục Cài đặt và bấm “Tạo tháng mới” để bắt đầu, hoặc nạp dữ liệu mẫu."
-      />
-    );
-  }
-
-  const collectionPct =
-    cur.totalBilled > 0 ? Math.round((cur.collected / cur.totalBilled) * 100) : 0;
-
-  // history chart span — "all", a specific year, or a specific half-year
-  const years = Array.from(new Set(months.map((m) => m.year))).sort((a, b) => b - a);
-  const halfKeys = Array.from(
-    new Set(months.map((m) => `${m.year}-${m.month <= 6 ? 1 : 2}`)),
-  ).sort((a, b) => b.localeCompare(a)); // newest first
-  const halfLabel = (key: string) => {
-    const [y, h] = key.split("-");
-    return `Nửa ${h === "1" ? "đầu" : "cuối"} ${y}`;
+  const bills = billsQ.data ?? [];
+  const sum = (f: (b: Bill) => number) => bills.reduce((a, b) => a + (f(b) || 0), 0);
+  const totals = {
+    units: sum((b) => b.units),
+    elec: sum((b) => b.electricity_amount),
+    room: sum((b) => b.room_fee),
+    trash: sum((b) => b.trash_fee),
+    grand: sum((b) => b.total),
+    paid: bills.filter((b) => isPaidStatus(b.payment_status)).length,
   };
 
-  const effYear = yearSel ?? years[0] ?? selectedMonth.year;
-  const effHalf = halfSel ?? halfKeys[0] ?? "";
+  const loading = isLoading || roomsQ.isLoading || billsQ.isLoading;
 
-  let chartPoints = longTerm.points;
-  if (chartMode === "year") {
-    chartPoints = longTerm.points.filter((p) => p.year === effYear);
-  } else if (chartMode === "half") {
-    const [hy, hh] = effHalf.split("-");
-    chartPoints = longTerm.points.filter(
-      (p) => p.year === Number(hy) && (hh === "1" ? p.month <= 6 : p.month >= 7),
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-[70vh] w-full rounded-2xl" />
+      </div>
+    );
+  }
+  if (!selectedMonth) {
+    return (
+      <Card className="mx-auto mt-10 max-w-md">
+        <CardContent className="p-8 text-center text-muted">
+          Chưa có dữ liệu tháng. Vào Cài đặt để tạo tháng mới.
+        </CardContent>
+      </Card>
     );
   }
 
+  const cell = "whitespace-nowrap px-3 py-2.5 sm:px-5 sm:py-3";
+  const num = cn(cell, "text-right tabular-nums");
+  const txt = cn(cell, "text-left");
+  const th = "whitespace-nowrap px-3 py-3 font-semibold sm:px-5";
+  // pinned room column: solid bg so scrolled content doesn't show through
+  const stickyCol = "sticky left-0 bg-surface";
+
+  const openRoom = openRoomId ? rooms.find((r) => r.id === openRoomId) : null;
+  const openBill = openRoom ? billByRoom.get(openRoom.id) ?? null : null;
+  const openTenant = openRoom ? tenantOf(openRoom.id, openBill) : null;
+
   return (
-    <div className="flex flex-col gap-8">
-      {/* ---------------- current month ---------------- */}
-      <section className="flex flex-col gap-4">
-        <Card className="overflow-hidden p-0">
-          {/* header photo — fades into the content below via an opacity mask */}
-          <div className="h-32 w-full sm:h-40">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/header.jpg"
-              alt="MH71"
-              className="h-full w-full object-cover [mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)]"
-            />
-          </div>
-
-          <div className="-mt-4 px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium text-muted">Tiến độ thu tiền</span>
-              <span className="font-bold">
-                <span className="text-success">{collectionPct}%</span>
-                <span className="text-muted">
-                  {" "}
-                  • {cur.paidCount}/{cur.roomCount} phòng
-                </span>
-              </span>
-            </div>
-            <div className="h-6 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
-              <div
-                className={cn("h-full rounded-full transition-all", collectionPct > 0 && "collection-bar")}
-                style={{ width: `${collectionPct}%` }}
-              />
-            </div>
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <StatCard
-            label="Tỉ lệ lấp đầy"
-            value={`${cur.roomCount ? Math.round((cur.occupied / cur.roomCount) * 100) : 0}%`}
-            sub={`${cur.occupied}/${cur.roomCount} phòng có người thuê`}
-            icon={Home}
-            tone="info"
-          />
-          <StatCard
-            label="Tổng sẽ thu"
-            value={formatVND(cur.totalBilled)}
-            icon={Wallet}
-            tone="primary"
-          />
-          <StatCard
-            label="Đã thu"
-            value={formatVND(cur.collected)}
-            sub={`còn ${formatVND(cur.totalBilled - cur.collected)}`}
-            icon={Banknote}
-            tone="info"
-          />
-          <StatCard
-            label="Tiền điện tiêu thụ"
-            value={cur.meterFilled ? formatVND(cur.electricityTotal) : "Chưa ghi"}
-            sub={
-              cur.meterFilled ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-success">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Đã ghi {formatNumber(cur.unitsTotal)} số điện
-                </span>
-              ) : (
-                "quản lý chưa nhập"
-              )
-            }
-            icon={Zap}
-            tone="warning"
-          />
-          <StatCard
-            label="Lợi nhuận (đã thu)"
-            value={formatVND(cur.profitCurrent)}
-            sub={prev ? "so với tháng trước" : undefined}
-            trend={profitTrend}
-            icon={TrendingUp}
-            tone="success"
-          />
-          <StatCard
-            label="Lợi nhuận (đủ 100%)"
-            value={formatVND(cur.profitFull)}
-            sub="nếu thu đủ"
-            icon={Layers}
-            tone="warning"
-          />
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-xl font-extrabold tracking-tight">
+            Tổng quan — {monthLabel(selectedMonth.year, selectedMonth.month)}
+          </h1>
+          <span className="text-sm font-semibold text-muted">
+            Đã thu {totals.paid}/{rooms.length} phòng
+          </span>
         </div>
-      </section>
-
-      {/* ---------------- long term ---------------- */}
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-extrabold tracking-tight">Tổng quan</h2>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <StatCard
-            label="Số tháng đã ghi"
-            value={formatNumber(months.length)}
-            sub="tháng"
-            icon={CalendarRange}
-            tone="info"
-          />
-          <StatCard
-            label="Tổng doanh thu"
-            value={formatVND(longTerm.totalRevenue)}
-            icon={Wallet}
-            tone="primary"
-          />
-          <StatCard
-            label="Tổng lợi nhuận"
-            value={formatVND(longTerm.totalProfit)}
-            icon={TrendingUp}
-            tone="success"
-          />
-          <StatCard
-            label="Tháng cao nhất"
-            value={longTerm.highest ? formatVND(longTerm.highest.v) : "—"}
-            sub={longTerm.highest?.label}
-            icon={ArrowUpCircle}
-            tone="success"
-          />
-          <StatCard
-            label="Tháng thấp nhất"
-            value={longTerm.lowest ? formatVND(longTerm.lowest.v) : "—"}
-            sub={longTerm.lowest?.label}
-            icon={ArrowDownCircle}
-            tone="danger"
-          />
+        <div className="flex items-center gap-2">
+          <span className="hidden text-sm text-muted sm:inline">
+            Bấm một dòng để sửa, hoặc mở
+          </span>
+          <Link href="/tenants">
+            <Button variant="outline" size="sm">
+              <Users className="h-4 w-4" />
+              Quản lý
+            </Button>
+          </Link>
         </div>
-
-        <Card>
-          <CardContent className="p-5 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-bold">Lịch sử doanh thu &amp; lợi nhuận</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-                  {CHART_MODES.map((m) => (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => setChartMode(m.key)}
-                      className={cn(
-                        "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                        chartMode === m.key
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted hover:text-foreground",
-                      )}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                {chartMode === "year" && (
-                  <select
-                    value={effYear}
-                    onChange={(e) => setYearSel(Number(e.target.value))}
-                    className="rounded-full border-2 border-border bg-surface px-3 py-1 text-xs font-semibold"
-                  >
-                    {years.map((y) => (
-                      <option key={y} value={y}>
-                        Năm {y}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {chartMode === "half" && (
-                  <select
-                    value={effHalf}
-                    onChange={(e) => setHalfSel(e.target.value)}
-                    className="rounded-full border-2 border-border bg-surface px-3 py-1 text-xs font-semibold"
-                  >
-                    {halfKeys.map((k) => (
-                      <option key={k} value={k}>
-                        {halfLabel(k)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-            {chartPoints.length > 0 ? (
-              <HistoryChart data={chartPoints} />
-            ) : (
-              <p className="py-10 text-center text-muted">Chưa có dữ liệu lịch sử.</p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-    </div>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="flex flex-col gap-6">
-      <Skeleton className="h-8 w-56" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-28" />
-        ))}
       </div>
-      <Skeleton className="h-72" />
-    </div>
-  );
-}
 
-function EmptyState({ title, message }: { title: string; message: string }) {
-  return (
-    <Card className="mx-auto mt-10 max-w-md">
-      <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
-        <h2 className="text-xl font-bold">{title}</h2>
-        <p className="text-muted">{message}</p>
-      </CardContent>
-    </Card>
+      <div className="max-h-[calc(100dvh-11rem)] w-full overflow-auto rounded-2xl border border-border bg-surface">
+        <table className="w-full min-w-[760px] text-xs sm:text-sm">
+          <thead className="sticky top-0 z-20 bg-surface-2 text-xs text-muted">
+            <tr>
+              <th className={cn(th, "sticky left-0 z-30 bg-surface-2 text-left")}>#</th>
+              <th className={cn(th, "text-left")}>Người thuê</th>
+              <th className={cn(th, "text-left")}>SĐT</th>
+              <th className={cn(th, "text-right")}>Số điện</th>
+              <th className={cn(th, "text-right")}>Tiền điện</th>
+              <th className={cn(th, "text-right")}>Tiền phòng</th>
+              <th className={cn(th, "text-right")}>Tiền rác</th>
+              <th className={cn(th, "text-right")}>Tổng</th>
+              <th className={cn(th, "text-left")}>Thanh toán</th>
+              <th className={cn(th, "text-left")}>T.gian</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rooms.map((room) => {
+              const b = billByRoom.get(room.id);
+              const t = tenantOf(room.id, b);
+              const recorded = b?.reading_new != null;
+              const vacant = !b || b.payment_status === "vacant";
+              const name = b?.tenant_name ?? t?.name ?? null;
+              const phone = b?.tenant_phone ?? t?.phone ?? "";
+              return (
+                <tr
+                  key={room.id}
+                  onClick={() => setOpenRoomId(room.id)}
+                  className="cursor-pointer border-t border-border/50 hover:bg-primary/5"
+                >
+                  <td className={cn(cell, stickyCol, "z-10 font-extrabold text-primary")}>
+                    {room.code}
+                  </td>
+                  <td className={cn(txt, "font-semibold", vacant && "text-muted")}>
+                    {name ?? "(trống)"}
+                  </td>
+                  <td className={cn(txt, "text-muted")}>{phone}</td>
+                  <td className={num}>{recorded ? formatNumber(b!.units) : "—"}</td>
+                  <td className={num}>{recorded ? formatVND(b!.electricity_amount) : "—"}</td>
+                  <td className={num}>{b ? formatVND(b.room_fee) : "—"}</td>
+                  <td className={num}>{b ? formatVND(b.trash_fee) : "—"}</td>
+                  <td className={cn(num, "font-bold")}>{b ? formatVND(b.total) : "—"}</td>
+                  <td className={cell}>{b ? <StatusChip status={b.payment_status} /> : null}</td>
+                  <td className={cn(txt, "text-muted")}>
+                    {b?.paid_at ? formatDateTimeLong(b.paid_at) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border bg-surface-2 font-bold">
+              <td className={cn(cell, "sticky left-0 z-10 bg-surface-2")} colSpan={3}>
+                Tổng cộng ({rooms.length})
+              </td>
+              <td className={num}>{formatNumber(totals.units)}</td>
+              <td className={num}>{formatVND(totals.elec)}</td>
+              <td className={num}>{formatVND(totals.room)}</td>
+              <td className={num}>{formatVND(totals.trash)}</td>
+              <td className={cn(num, "text-primary")}>{formatVND(totals.grand)}</td>
+              <td className={cell} colSpan={2} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* tap a row → full editable tenant card */}
+      <Dialog open={!!openRoomId} onOpenChange={(o) => !o && setOpenRoomId(null)}>
+        <DialogContent className="max-w-2xl p-3 pt-12">
+          <DialogTitle className="sr-only">Chi tiết phòng {openRoom?.code}</DialogTitle>
+          {openRoom && selectedMonth && (
+            <TenantRow
+              room={openRoom}
+              bill={openBill}
+              tenant={openTenant}
+              photoUrl={openTenant?.photo_url ?? null}
+              month={selectedMonth}
+              buildingName={settings?.building_name ?? "MH71"}
+              open
+              hideChevron
+              onOpenChange={() => {
+                /* dialog owns close (X / Esc / overlay) — don't collapse on click */
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

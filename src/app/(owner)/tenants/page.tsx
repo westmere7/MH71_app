@@ -124,7 +124,7 @@ export default function TenantsPage() {
   const loading = isLoading || roomsQ.isLoading || billsQ.isLoading;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-extrabold tracking-tight">Phòng thuê</h1>
         {selectedMonth && (
