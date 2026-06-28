@@ -34,9 +34,15 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // getSession() reads + validates the JWT from the cookie LOCALLY (no network),
+  // refreshing only when actually expired. getUser() would hit Supabase Auth on
+  // every navigation, which after an idle period causes a multi-second freeze on
+  // page switches. Routing only needs "is there a session"; the data itself is
+  // still protected by RLS on every query.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const path = request.nextUrl.pathname;
 
