@@ -3,6 +3,11 @@ import type { PaymentStatus, ProgressStatus } from "./supabase/types";
 export const APP_NAME = "MH71";
 export const APP_VERSION = "1.2.0";
 
+// "Chi phí tổng cộng": a fixed monthly bundle of external service fees the owner
+// pays (NOT electricity). Stored per month on months.other_fees; this is the
+// default applied to newly-created months.
+export const DEFAULT_TOTAL_COST = 4_800_000;
+
 // ---- Payment status (tenant) ----
 export interface StatusMeta {
   label: string;

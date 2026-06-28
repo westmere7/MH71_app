@@ -2,6 +2,7 @@
 
 import { addMonths, parseISO, formatISO } from "date-fns";
 import { getSupabaseBrowser } from "./supabase/client";
+import { DEFAULT_TOTAL_COST } from "./constants";
 import type { Bill, MonthRow, PaymentStatus, Settings, Tenant } from "./supabase/types";
 
 function unwrap<T>({ data, error }: { data: T; error: unknown }): T {
@@ -285,11 +286,12 @@ export async function createNextMonth(): Promise<MonthRow> {
     month = now.getMonth() + 1;
   }
 
-  // create the month
+  // create the month — carry "Chi phí tổng cộng" forward (default if first month)
+  const otherFees = latest?.other_fees ?? DEFAULT_TOTAL_COST;
   const newMonth = unwrap(
     await sb
       .from("months")
-      .insert({ year, month, period_start: periodStart, period_end: periodEnd })
+      .insert({ year, month, period_start: periodStart, period_end: periodEnd, other_fees: otherFees })
       .select()
       .single(),
   ) as MonthRow;

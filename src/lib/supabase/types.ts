@@ -59,6 +59,7 @@ export interface MonthRow {
   fee_status: ProgressStatus;
   collection_status: ProgressStatus;
   other_fees: number;
+  evn_bill: number; // actual EVN electricity bill the owner pays (migration 0010)
   meter_note_photo_url: string | null;
   meter_filled_at: string | null; // khi quản lý bấm "Hoàn tất ghi điện"
   created_at: string;

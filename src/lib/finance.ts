@@ -2,13 +2,14 @@ import type { Bill, MonthRow, ProgressStatus } from "./supabase/types";
 import { isPaidStatus, paidAmountOf } from "./constants";
 
 // =====================================================================
-// Money model (matches the owner's sheet):
+// Money model:
 //
-//   Lợi nhuận = Tổng thu − Tổng chi
+//   Lợi nhuận = Doanh thu − (Chi phí tổng cộng + Điện EVN)
 //
-// "Tổng chi" (total monthly expenses: EVN electricity, trash, internet,
-// security, management, misc) is entered per month as `months.other_fees`.
-// Profit is total income minus that single expense figure.
+// "Chi phí tổng cộng" (months.other_fees) is a fixed per-month bundle of
+// external service fees. "Điện EVN" (months.evn_bill) is the actual electricity
+// bill the OWNER pays — entered manually, and different from the electricity fee
+// charged to tenants (electricityTotal, which is part of revenue).
 // =====================================================================
 
 export interface MonthStats {
@@ -21,9 +22,11 @@ export interface MonthStats {
   unitsTotal: number; // tổng số điện tiêu thụ (kWh)
   trashTotal: number;
   roomFeeTotal: number;
-  expenses: number; // Tổng chi (months.other_fees)
-  profitFull: number; // lợi nhuận nếu thu đủ 100% = totalBilled − Tổng chi
-  profitCurrent: number; // lợi nhuận theo số đã thu = collected − Tổng chi
+  expenses: number; // Chi phí tổng cộng (months.other_fees)
+  evnBill: number; // Điện EVN (months.evn_bill) — owner's actual electricity cost
+  totalCost: number; // Chi phí tổng cộng + Điện EVN
+  profitFull: number; // lợi nhuận nếu thu đủ 100% = totalBilled − totalCost
+  profitCurrent: number; // lợi nhuận theo số đã thu = collected − totalCost
   meterFilled: boolean; // quản lý đã nhập số điện chưa (có reading_new)
 }
 
@@ -36,6 +39,7 @@ function billCounts(b: Bill) {
 
 export function computeMonthStats(bills: Bill[], month?: MonthRow | null): MonthStats {
   const expenses = month?.other_fees ?? 0;
+  const evnBill = month?.evn_bill ?? 0;
   let occupied = 0;
   let paidCount = 0;
   let totalBilled = 0;
@@ -73,8 +77,10 @@ export function computeMonthStats(bills: Bill[], month?: MonthRow | null): Month
     trashTotal,
     roomFeeTotal,
     expenses,
-    profitFull: totalBilled - expenses,
-    profitCurrent: collected - expenses,
+    evnBill,
+    totalCost: expenses + evnBill,
+    profitFull: totalBilled - expenses - evnBill,
+    profitCurrent: collected - expenses - evnBill,
     meterFilled,
   };
 }

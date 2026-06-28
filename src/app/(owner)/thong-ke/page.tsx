@@ -3,25 +3,26 @@
 import * as React from "react";
 import {
   Home,
-  CheckCircle2,
   Wallet,
-  Banknote,
   TrendingUp,
+  Zap,
   CalendarRange,
   ArrowUpCircle,
   ArrowDownCircle,
-  Layers,
-  Zap,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { useAllBills } from "@/lib/queries";
 import { computeMonthStats, pctChange } from "@/lib/finance";
 import type { Bill, MonthRow } from "@/lib/supabase/types";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { CountUp } from "@/components/dashboard/count-up";
 import { HistoryChart, type HistoryPoint } from "@/components/dashboard/history-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatVND, formatNumber } from "@/lib/format";
+import { formatVND, formatNumber, formatPercent, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const CHART_MODES = [
@@ -32,7 +33,7 @@ const CHART_MODES = [
 type ChartMode = (typeof CHART_MODES)[number]["key"];
 
 export default function DashboardPage() {
-  const { months, selectedMonth, isLoading } = useMonthCtx();
+  const { months, selectedMonth, settings, isLoading } = useMonthCtx();
   const [chartMode, setChartMode] = React.useState<ChartMode>("all");
   const [yearSel, setYearSel] = React.useState<number | null>(null);
   const [halfSel, setHalfSel] = React.useState<string | null>(null); // "YYYY-1" | "YYYY-2"
@@ -61,6 +62,12 @@ export default function DashboardPage() {
   const prevMonth = selIdx >= 0 && selIdx < months.length - 1 ? months[selIdx + 1] : null;
   const prev = prevMonth ? monthStats(prevMonth) : null;
   const profitTrend = pctChange(cur.profitCurrent, prev?.profitCurrent ?? null);
+  // effective electricity rate for this month (đ/số) + vs last month
+  const elecRate =
+    cur.unitsTotal > 0
+      ? Math.round(cur.electricityTotal / cur.unitsTotal)
+      : (settings?.electricity_rate ?? 0);
+  const elecTrend = pctChange(cur.electricityTotal, prev?.electricityTotal ?? null);
 
   // ---- long-term ----
   const monthsAsc = React.useMemo(() => [...months].reverse(), [months]);
@@ -74,13 +81,13 @@ export default function DashboardPage() {
       const s = computeMonthStats(byMonth.get(m.id) ?? [], m);
       const label = `T${m.month}/${String(m.year).slice(2)}`;
       totalRevenue += s.totalBilled;
-      totalProfit += s.profitFull;
+      totalProfit += s.profitCurrent;
       points.push({
         label,
         year: m.year,
         month: m.month,
         doanhthu: s.totalBilled,
-        loinhuan: s.profitFull,
+        loinhuan: s.profitCurrent,
       });
       if (s.totalBilled > 0) {
         if (!highest || s.totalBilled > highest.v) highest = { label, v: s.totalBilled };
@@ -164,57 +171,65 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <StatCard
-            label="Tỉ lệ lấp đầy"
-            value={`${cur.roomCount ? Math.round((cur.occupied / cur.roomCount) * 100) : 0}%`}
-            sub={`${cur.occupied}/${cur.roomCount} phòng có người thuê`}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <BigStat
             icon={Home}
             tone="info"
+            label="Tỉ lệ lấp đầy"
+            value={
+              <CountUp
+                value={cur.roomCount ? (cur.occupied / cur.roomCount) * 100 : 0}
+                format={(n) => `${Math.round(n)}%`}
+              />
+            }
+            hint={`${cur.occupied}/${cur.roomCount} phòng có người thuê`}
           />
-          <StatCard
-            label="Tổng sẽ thu"
-            value={formatVND(cur.totalBilled)}
+          <BigStat
             icon={Wallet}
             tone="primary"
-          />
-          <StatCard
-            label="Đã thu"
-            value={formatVND(cur.collected)}
-            sub={`còn ${formatVND(cur.totalBilled - cur.collected)}`}
-            icon={Banknote}
-            tone="info"
-          />
-          <StatCard
-            label="Tiền điện tiêu thụ"
-            value={cur.meterFilled ? formatVND(cur.electricityTotal) : "Chưa ghi"}
-            sub={
-              cur.meterFilled ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-success">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Đã ghi {formatNumber(cur.unitsTotal)} số điện
+            label="Doanh thu"
+            value={
+              <>
+                <CountUp value={cur.collected} format={formatVND} />
+                <span className="text-base font-semibold text-muted">
+                  {" "}
+                  / {formatVND(cur.totalBilled)}
                 </span>
-              ) : (
-                "quản lý chưa nhập"
-              )
+              </>
             }
+            hint="Đã thu / tổng sẽ thu"
+          />
+          <BigStat
             icon={Zap}
             tone="warning"
+            label="Tiền điện"
+            value={
+              cur.meterFilled ? (
+                <CountUp value={cur.electricityTotal} format={formatVND} />
+              ) : (
+                <span className="text-warning">Chưa ghi</span>
+              )
+            }
+            hint={
+              cur.meterFilled
+                ? `${formatNumber(cur.unitsTotal)} số × ${formatNumber(elecRate)}đ`
+                : "quản lý chưa nhập"
+            }
+            note={
+              cur.meterFilled && selectedMonth.meter_filled_at
+                ? `Ghi điện: ${formatDateTime(selectedMonth.meter_filled_at)}`
+                : undefined
+            }
+            trend={cur.meterFilled ? elecTrend : null}
+            trendNeutral
           />
-          <StatCard
-            label="Lợi nhuận (đã thu)"
-            value={formatVND(cur.profitCurrent)}
-            sub={prev ? "so với tháng trước" : undefined}
-            trend={profitTrend}
+          <BigStat
             icon={TrendingUp}
             tone="success"
-          />
-          <StatCard
-            label="Lợi nhuận (đủ 100%)"
-            value={formatVND(cur.profitFull)}
-            sub="nếu thu đủ"
-            icon={Layers}
-            tone="warning"
+            label="Lợi nhuận"
+            value={<CountUp value={cur.profitCurrent} format={formatVND} />}
+            hint="Đã thu − chi phí − điện EVN"
+            trend={profitTrend}
           />
         </div>
       </section>
@@ -321,13 +336,73 @@ export default function DashboardPage() {
   );
 }
 
+const BIG_TONES = {
+  primary: "bg-primary/12 text-primary",
+  success: "bg-success-surface text-success",
+  info: "bg-info-surface text-info",
+  warning: "bg-warning-surface text-warning",
+} as const;
+
+function BigStat({
+  icon: Icon,
+  tone,
+  label,
+  value,
+  hint,
+  note,
+  trend,
+  trendNeutral,
+}: {
+  icon: LucideIcon;
+  tone: keyof typeof BIG_TONES;
+  label: string;
+  value: React.ReactNode;
+  hint: string;
+  note?: string;
+  trend?: number | null;
+  trendNeutral?: boolean; // muted (no good/bad colour) — e.g. electricity usage
+}) {
+  return (
+    <Card className="flex flex-col gap-2 p-5 sm:p-6">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-muted">{label}</span>
+        <span className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", BIG_TONES[tone])}>
+          <Icon className="h-6 w-6" />
+        </span>
+      </div>
+      <div className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums sm:text-[2rem]">
+        {value}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
+        <span>{hint}</span>
+        {trend != null && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 font-semibold",
+              trendNeutral ? "text-muted" : trend >= 0 ? "text-success" : "text-danger",
+            )}
+          >
+            {trend >= 0 ? (
+              <ArrowUpRight className="h-4 w-4" />
+            ) : (
+              <ArrowDownRight className="h-4 w-4" />
+            )}
+            {formatPercent(trend)}
+          </span>
+        )}
+      </div>
+      {note && <div className="text-xs text-muted/80">{note}</div>}
+    </Card>
+  );
+}
+
 function DashboardSkeleton() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <Skeleton className="h-8 w-56" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-28" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-32" />
         ))}
       </div>
       <Skeleton className="h-72" />

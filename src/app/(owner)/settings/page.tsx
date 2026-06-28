@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
-import { updateMonthMeta, createNextMonth, deleteMonth, updateSettings } from "@/lib/mutations";
+import { createNextMonth, deleteMonth, updateSettings, updateMonthMeta } from "@/lib/mutations";
 import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,12 +68,7 @@ export default function SettingsPage() {
         hint="Chỉ ảnh hưởng tháng đang chọn — không thay đổi các tháng khác."
       />
       {selectedMonth && (
-        <MeterExpenseCard
-          key={selectedMonth.id}
-          qc={qc}
-          month={selectedMonth}
-          locked={selectedLocked}
-        />
+        <MeterExpenseCard key={selectedMonth.id} qc={qc} month={selectedMonth} locked={selectedLocked} />
       )}
       {selectedMonth && <PricingCard />}
 
@@ -404,14 +399,15 @@ function MeterExpenseCard({
   const stats = computeMonthStats(billsQ.data ?? [], month);
   const filled = stats.meterFilled;
 
-  const [otherFees, setOtherFees] = React.useState(month.other_fees);
-  const saveFees = useMutation({
-    mutationFn: () => updateMonthMeta(month.id, { other_fees: otherFees }),
+  // EVN bill (owner's actual electricity cost) — manual, per month
+  const [evn, setEvn] = React.useState(month.evn_bill ?? 0);
+  const saveEvn = useMutation({
+    mutationFn: () => updateMonthMeta(month.id, { evn_bill: evn }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.months });
-      toast.success("Đã lưu chi phí khác");
+      toast.success("Đã lưu tiền điện EVN");
     },
-    onError: () => toast.error("Lưu thất bại."),
+    onError: () => toast.error("Lưu thất bại. Cần chạy migration 0010."),
   });
 
   function copyMeterLink() {
@@ -426,7 +422,7 @@ function MeterExpenseCard({
     <Card>
       <CardHeader className="flex items-center gap-2">
         <Zap className="h-5 w-5 text-primary" />
-        <CardTitle>Số điện &amp; chi phí</CardTitle>
+        <CardTitle>Tiền điện</CardTitle>
         <span className="ml-auto text-sm font-semibold text-muted">
           {monthLabel(month.year, month.month)}
         </span>
@@ -480,24 +476,24 @@ function MeterExpenseCard({
           </div>
         </div>
 
-        {/* other expenses — single VND box, saved on blur */}
+        {/* EVN bill — the owner's actual electricity cost (manual, for profit) */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="other-fees">Chi phí khác trong tháng (đ)</Label>
+          <Label htmlFor="evn-bill">Tiền điện EVN phải trả (đ)</Label>
           <Input
-            id="other-fees"
+            id="evn-bill"
             inputMode="numeric"
             disabled={locked}
-            value={otherFees ? formatNumber(otherFees) : ""}
-            onChange={(e) => setOtherFees(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
+            value={evn ? formatNumber(evn) : ""}
+            onChange={(e) => setEvn(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
             onBlur={() => {
-              if (!locked && otherFees !== month.other_fees) saveFees.mutate();
+              if (!locked && evn !== month.evn_bill) saveEvn.mutate();
             }}
             placeholder="0"
           />
           <p className="text-sm text-muted">
             {locked
-              ? "Tháng này đã khoá — không thể sửa chi phí."
-              : "Các chi phí thanh toán bên ngoài khác như internet, dịch vụ, v.v."}
+              ? "Tháng này đã khoá — không thể sửa."
+              : "Hoá đơn điện thực tế trả cho EVN (khác với tiền điện thu của khách). Dùng để tính lợi nhuận."}
           </p>
         </div>
 
