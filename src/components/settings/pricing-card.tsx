@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Coins, Loader2, Save, Undo2, Lock, ListChecks } from "lucide-react";
+import { Coins, Loader2, Save, Undo2, Lock, ListChecks, ChevronDown } from "lucide-react";
 import { useRooms, useSettings, qk } from "@/lib/queries";
 import { useMonthCtx } from "@/components/month-provider";
 import { saveMonthPricing, updateMonthMeta, type PricingRoom } from "@/lib/mutations";
@@ -76,6 +76,7 @@ export function PricingCard() {
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [original, setOriginal] = React.useState<Draft | null>(null);
   const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [tableOpen, setTableOpen] = React.useState(false); // per-room table collapsed by default
 
   React.useEffect(() => {
     if (rooms.length && settings && selectedMonth) {
@@ -167,8 +168,22 @@ export function PricingCard() {
               </div>
             </Section>
 
-            {/* 3. per-room table */}
-            <Section title="Bảng giá từng phòng">
+            {/* 3. per-room table (collapsed by default) */}
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setTableOpen((o) => !o)}
+                className="flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-left"
+              >
+                <span className="text-sm font-bold">Bảng giá từng phòng</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                  {tableOpen ? "Thu gọn" : "Mở rộng"}
+                  <ChevronDown
+                    className={cn("h-4 w-4 transition-transform", tableOpen && "rotate-180")}
+                  />
+                </span>
+              </button>
+              {tableOpen && (
               <div className="overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[420px] text-sm">
                   <thead>
@@ -217,7 +232,8 @@ export function PricingCard() {
                   </tbody>
                 </table>
               </div>
-            </Section>
+              )}
+            </div>
 
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted">
