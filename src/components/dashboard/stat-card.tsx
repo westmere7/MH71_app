@@ -29,7 +29,7 @@ export function StatCard({
   trend?: number | null;
 }) {
   return (
-    <Card className="p-4">
+    <Card className="border-0 p-4">
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-medium text-muted">{label}</span>
         {Icon && (
