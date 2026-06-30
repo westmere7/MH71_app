@@ -1,5 +1,5 @@
 import { LoginForm } from "@/components/auth/login-form";
-import { Building2 } from "lucide-react";
+import { HouseMark } from "@/components/brand/house-mark";
 
 export const metadata = { title: "Đăng nhập — MH71" };
 
@@ -9,7 +9,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand text-brand-foreground">
-            <Building2 className="h-8 w-8" />
+            <HouseMark className="h-8 w-8" />
           </span>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">MH71</h1>

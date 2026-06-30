@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { HouseMark } from "@/components/brand/house-mark";
 import { NAV_ITEMS } from "./nav-items";
 import { SignOutButton } from "./sign-out-button";
 import { APP_VERSION } from "@/lib/constants";
@@ -15,15 +15,17 @@ export function Sidebar() {
   const account = useAccount();
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface p-4 md:flex">
-      <Link href="/" className="mb-6 flex items-center gap-3 px-2">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-brand-foreground">
-          <Building2 className="h-6 w-6" />
+      <Link href="/" className="mb-4 flex items-center gap-2 px-2">
+        <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-brand text-brand-foreground">
+          <HouseMark className="h-9 w-9" />
         </span>
         <div className="leading-tight">
           <div className="text-xl font-extrabold">MH71</div>
           <div className="text-xs text-muted">Quản lý nhà trọ</div>
         </div>
       </Link>
+
+      <div className="mb-4 border-t border-border" />
 
       <nav className="flex flex-col gap-1.5">
         {NAV_ITEMS.map((item) => {
