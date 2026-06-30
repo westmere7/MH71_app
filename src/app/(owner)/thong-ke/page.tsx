@@ -141,17 +141,17 @@ export default function DashboardPage() {
       {/* ---------------- current month ---------------- */}
       <section className="flex flex-col gap-6">
         <div>
-          {/* boxless header banner — fills the column, fades out at the bottom */}
+          {/* boxless header banner — rounded photo that fades out at the bottom */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/header.jpg"
             alt="MH71"
-            className="h-44 w-full rounded-2xl object-cover sm:h-56 [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]"
+            className="h-44 w-full rounded-2xl object-cover sm:h-56 [mask-image:linear-gradient(to_bottom,black_55%,transparent_98%)] [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_98%)]"
           />
 
-          {/* collection progress — a prominent card that stands out of the header */}
-          <div className="relative z-10 -mt-14 rounded-2xl border border-border bg-surface p-4 shadow-xl ring-1 ring-black/5 sm:-mt-16 sm:p-5">
-            <div className="mb-3 flex items-end justify-between gap-3">
+          {/* collection progress — floats over the header's lower edge */}
+          <div className="relative z-10 mx-3 -mt-12 rounded-2xl border border-border bg-surface p-4 shadow-2xl ring-1 ring-black/10 sm:mx-6 sm:-mt-14 sm:p-5">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
               <span className="flex items-baseline gap-2">
                 <span className="text-base font-bold sm:text-lg">Tiến độ thu tiền</span>
                 <span className="text-sm font-semibold text-muted">
