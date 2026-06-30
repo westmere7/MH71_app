@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = React.useState("");
+  const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -21,10 +21,27 @@ export function LoginForm() {
     setLoading(true);
     setError(null);
     const supabase = getSupabaseBrowser();
+    const fail = () => {
+      setError("Tên đăng nhập hoặc mật khẩu không đúng.");
+      setLoading(false);
+    };
+
+    // Accept either a username or a full email. A bare username is resolved to
+    // its email through the email_for_username RPC (see 0011_username_login.sql).
+    const id = identifier.trim();
+    let email = id;
+    if (!id.includes("@")) {
+      const { data, error } = await supabase.rpc("email_for_username", { uname: id });
+      if (error || !data) {
+        fail();
+        return;
+      }
+      email = data as string;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setError("Email hoặc mật khẩu không đúng.");
-      setLoading(false);
+      fail();
       return;
     }
     router.push("/");
@@ -36,15 +53,18 @@ export function LoginForm() {
       <CardContent className="p-6 sm:p-7">
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="identifier">Tên đăng nhập</Label>
             <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              placeholder="ban@email.com"
+              placeholder="tên đăng nhập"
             />
           </div>
           <div className="flex flex-col gap-2">
