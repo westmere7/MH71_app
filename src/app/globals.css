@@ -122,16 +122,18 @@ body {
   }
 }
 .collection-bar {
-  background-color: var(--color-success);
+  /* --bar-color is set inline from the collection %; falls back to vibrant green */
+  background-color: var(--bar-color, #16d27e);
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.16) 0,
-    rgba(255, 255, 255, 0.16) 0.5rem,
+    rgba(255, 255, 255, 0.22) 0,
+    rgba(255, 255, 255, 0.22) 0.5rem,
     transparent 0.5rem,
     transparent 1rem
   );
   background-size: 1.414rem 1.414rem;
   animation: collection-stripes 0.9s linear infinite;
+  transition: background-color 0.4s ease, width 0.4s ease;
 }
 
 /* number inputs without spinners (meter entry) */

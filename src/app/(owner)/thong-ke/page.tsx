@@ -112,6 +112,15 @@ export default function DashboardPage() {
 
   const collectionPct =
     cur.totalBilled > 0 ? Math.round((cur.collected / cur.totalBilled) * 100) : 0;
+  // vibrant bar colour that tracks the collection %: red → amber → lime → green
+  const barColor =
+    collectionPct >= 90
+      ? "#16d27e"
+      : collectionPct >= 70
+        ? "#7ed321"
+        : collectionPct >= 40
+          ? "#f5a623"
+          : "#f5455c";
 
   // history chart span — "all", a specific year, or a specific half-year
   const years = Array.from(new Set(months.map((m) => m.year))).sort((a, b) => b - a);
@@ -170,7 +179,7 @@ export default function DashboardPage() {
             <div className="h-8 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
               <div
                 className={cn("h-full rounded-full transition-all", collectionPct > 0 && "collection-bar")}
-                style={{ width: `${collectionPct}%` }}
+                style={{ width: `${collectionPct}%`, "--bar-color": barColor } as React.CSSProperties}
               />
             </div>
           </div>
