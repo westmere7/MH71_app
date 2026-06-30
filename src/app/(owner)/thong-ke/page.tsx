@@ -22,7 +22,7 @@ import { CountUp } from "@/components/dashboard/count-up";
 import { HistoryChart, type HistoryPoint } from "@/components/dashboard/history-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatVND, formatNumber, formatPercent, formatDateTime } from "@/lib/format";
+import { formatVND, formatNumber, formatPercent, formatDateTime, monthLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const CHART_MODES = [
@@ -139,37 +139,42 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       {/* ---------------- current month ---------------- */}
-      <section className="flex flex-col gap-4">
-        <Card className="overflow-hidden p-0">
-          {/* header photo — fades into the content below via an opacity mask */}
-          <div className="h-32 w-full sm:h-40">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/header.jpg"
-              alt="MH71"
-              className="h-full w-full object-cover [mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_50%,transparent_100%)]"
-            />
-          </div>
+      <section className="flex flex-col gap-6">
+        <div>
+          {/* boxless header banner — fills the column, fades out at the bottom */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/header.jpg"
+            alt="MH71"
+            className="h-44 w-full rounded-2xl object-cover sm:h-56 [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)]"
+          />
 
-          <div className="-mt-4 px-4 pb-4 sm:px-5 sm:pb-5">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium text-muted">Tiến độ thu tiền</span>
-              <span className="font-bold">
-                <span className="text-success">{collectionPct}%</span>
-                <span className="text-muted">
-                  {" "}
-                  • {cur.paidCount}/{cur.roomCount} phòng
+          {/* collection progress — a prominent card that stands out of the header */}
+          <div className="relative z-10 -mt-14 rounded-2xl border border-border bg-surface p-4 shadow-xl ring-1 ring-black/5 sm:-mt-16 sm:p-5">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <span className="flex items-baseline gap-2">
+                <span className="text-base font-bold sm:text-lg">Tiến độ thu tiền</span>
+                <span className="text-sm font-semibold text-muted">
+                  {monthLabel(selectedMonth.year, selectedMonth.month)}
+                </span>
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-xl font-extrabold tabular-nums text-success sm:text-2xl">
+                  {collectionPct}%
+                </span>
+                <span className="text-sm font-semibold text-muted">
+                  {cur.paidCount}/{cur.roomCount} phòng
                 </span>
               </span>
             </div>
-            <div className="h-6 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
+            <div className="h-8 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-border">
               <div
                 className={cn("h-full rounded-full transition-all", collectionPct > 0 && "collection-bar")}
                 style={{ width: `${collectionPct}%` }}
               />
             </div>
           </div>
-        </Card>
+        </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <BigStat

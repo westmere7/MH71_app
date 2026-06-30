@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Bill, Tenant } from "@/lib/supabase/types";
 
+const OVERVIEW_COLS_KEY = "mh71.overview.cols";
+
 // Read-only-at-a-glance overview (kiosk friendly). Tapping a row opens the full
 // editable tenant card in a dialog.
 export default function OverviewPage() {
@@ -26,6 +28,27 @@ export default function OverviewPage() {
   const allTenantsQ = useAllTenants();
 
   const [openRoomId, setOpenRoomId] = React.useState<string | null>(null);
+
+  // optional columns the user can hide (persisted locally)
+  const [cols, setCols] = React.useState({ phone: true, units: true, trash: true });
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(OVERVIEW_COLS_KEY);
+      if (raw) setCols((c) => ({ ...c, ...JSON.parse(raw) }));
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+  const toggleCol = (k: keyof typeof cols) =>
+    setCols((c) => {
+      const next = { ...c, [k]: !c[k] };
+      try {
+        localStorage.setItem(OVERVIEW_COLS_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   const rooms = React.useMemo(
     () => [...(roomsQ.data ?? [])].sort((a, b) => a.sort_order - b.sort_order),
@@ -91,8 +114,10 @@ export default function OverviewPage() {
   const num = cn(cell, "text-right tabular-nums");
   const txt = cn(cell, "text-left");
   const th = "whitespace-nowrap px-3 py-3 font-semibold sm:px-5";
-  // pinned room column: solid bg so scrolled content doesn't show through
-  const stickyCol = "sticky left-0 bg-surface";
+  // pinned columns: fixed width on the room col so the name col can pin right
+  // after it; solid bg so scrolled content doesn't show through.
+  const colWidth = "w-14 sm:w-20";
+  const nameLeft = "left-14 sm:left-20";
 
   const openRoom = openRoomId ? rooms.find((r) => r.id === openRoomId) : null;
   const openBill = openRoom ? billByRoom.get(openRoom.id) ?? null : null;
@@ -122,17 +147,31 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* show / hide optional columns */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-0.5 text-xs font-medium text-muted">Hiện cột:</span>
+        <ColToggle on={cols.phone} onClick={() => toggleCol("phone")}>
+          SĐT
+        </ColToggle>
+        <ColToggle on={cols.units} onClick={() => toggleCol("units")}>
+          Số điện
+        </ColToggle>
+        <ColToggle on={cols.trash} onClick={() => toggleCol("trash")}>
+          Tiền rác
+        </ColToggle>
+      </div>
+
       <div className="max-h-[calc(100dvh-11rem)] w-full overflow-auto rounded-2xl border border-border bg-surface">
         <table className="w-full min-w-[760px] text-xs sm:text-sm">
           <thead className="sticky top-0 z-20 bg-surface-2 text-xs text-muted">
             <tr>
-              <th className={cn(th, "sticky left-0 z-30 bg-surface-2 text-left")}>#</th>
-              <th className={cn(th, "text-left")}>Người thuê</th>
-              <th className={cn(th, "text-left")}>SĐT</th>
-              <th className={cn(th, "text-right")}>Số điện</th>
+              <th className={cn(th, colWidth, "sticky left-0 z-30 bg-surface-2 text-left")}>#</th>
+              <th className={cn(th, nameLeft, "sticky z-30 bg-surface-2 text-left")}>Người thuê</th>
+              {cols.phone && <th className={cn(th, "text-left")}>SĐT</th>}
+              {cols.units && <th className={cn(th, "text-right")}>Số điện</th>}
               <th className={cn(th, "text-right")}>Tiền điện</th>
               <th className={cn(th, "text-right")}>Tiền phòng</th>
-              <th className={cn(th, "text-right")}>Tiền rác</th>
+              {cols.trash && <th className={cn(th, "text-right")}>Tiền rác</th>}
               <th className={cn(th, "text-right")}>Tổng</th>
               <th className={cn(th, "text-left")}>Thanh toán</th>
               <th className={cn(th, "text-left")}>T.gian</th>
@@ -152,17 +191,24 @@ export default function OverviewPage() {
                   onClick={() => setOpenRoomId(room.id)}
                   className="cursor-pointer border-t border-border/50 hover:bg-primary/5"
                 >
-                  <td className={cn(cell, stickyCol, "z-10 font-extrabold text-primary")}>
+                  <td className={cn(cell, colWidth, "sticky left-0 z-10 bg-surface font-extrabold text-primary")}>
                     {room.code}
                   </td>
-                  <td className={cn(txt, "font-semibold", vacant && "text-muted")}>
+                  <td
+                    className={cn(
+                      txt,
+                      nameLeft,
+                      "sticky z-10 bg-surface font-semibold",
+                      vacant && "text-muted",
+                    )}
+                  >
                     {name ?? "(trống)"}
                   </td>
-                  <td className={cn(txt, "text-muted")}>{phone}</td>
-                  <td className={num}>{recorded ? formatNumber(b!.units) : "—"}</td>
+                  {cols.phone && <td className={cn(txt, "text-muted")}>{phone}</td>}
+                  {cols.units && <td className={num}>{recorded ? formatNumber(b!.units) : "—"}</td>}
                   <td className={num}>{recorded ? formatVND(b!.electricity_amount) : "—"}</td>
                   <td className={num}>{b ? formatVND(b.room_fee) : "—"}</td>
-                  <td className={num}>{b ? formatVND(b.trash_fee) : "—"}</td>
+                  {cols.trash && <td className={num}>{b ? formatVND(b.trash_fee) : "—"}</td>}
                   <td className={cn(num, "font-bold")}>{b ? formatVND(b.total) : "—"}</td>
                   <td className={cell}>{b ? <StatusChip status={b.payment_status} /> : null}</td>
                   <td className={cn(txt, "text-muted")}>
@@ -174,13 +220,13 @@ export default function OverviewPage() {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-surface-2 font-bold">
-              <td className={cn(cell, "sticky left-0 z-10 bg-surface-2")} colSpan={3}>
+              <td className={cn(cell, "sticky left-0 z-10 bg-surface-2")} colSpan={2 + (cols.phone ? 1 : 0)}>
                 Tổng cộng ({rooms.length})
               </td>
-              <td className={num}>{formatNumber(totals.units)}</td>
+              {cols.units && <td className={num}>{formatNumber(totals.units)}</td>}
               <td className={num}>{formatVND(totals.elec)}</td>
               <td className={num}>{formatVND(totals.room)}</td>
-              <td className={num}>{formatVND(totals.trash)}</td>
+              {cols.trash && <td className={num}>{formatVND(totals.trash)}</td>}
               <td className={cn(num, "text-primary")}>{formatVND(totals.grand)}</td>
               <td className={cell} colSpan={2} />
             </tr>
@@ -210,5 +256,31 @@ export default function OverviewPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function ColToggle({
+  on,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
+        on
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-border text-muted hover:bg-surface-2",
+      )}
+    >
+      {children}
+    </button>
   );
 }
