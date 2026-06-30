@@ -45,8 +45,14 @@ export function useAccount(): Account | undefined {
   React.useEffect(() => {
     const sb = getSupabaseBrowser();
     let active = true;
+    // 1) instant paint from the locally-cached session
     sb.auth.getSession().then(({ data }) => {
       if (active) setAccount(toAccount(data.session?.user));
+    });
+    // 2) authoritative refresh from the server — the cached session's JWT can
+    //    hold stale user_metadata (e.g. a name changed on another device).
+    sb.auth.getUser().then(({ data }) => {
+      if (active && data.user) setAccount(toAccount(data.user));
     });
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
       if (active) setAccount(toAccount(session?.user));
