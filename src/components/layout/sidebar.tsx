@@ -6,10 +6,13 @@ import { Building2 } from "lucide-react";
 import { NAV_ITEMS } from "./nav-items";
 import { SignOutButton } from "./sign-out-button";
 import { APP_VERSION } from "@/lib/constants";
+import { useAccount } from "@/lib/account";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-export function Sidebar({ userEmail }: { userEmail?: string }) {
+export function Sidebar() {
   const pathname = usePathname();
+  const account = useAccount();
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface p-4 md:flex">
       <Link href="/" className="mb-6 flex items-center gap-3 px-2">
@@ -45,13 +48,16 @@ export function Sidebar({ userEmail }: { userEmail?: string }) {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 pt-4">
-        {userEmail && (
-          <div className="flex items-center justify-between gap-2 px-3 pb-1">
-            <span className="truncate text-xs text-muted" title={userEmail}>
-              {userEmail}
-            </span>
+        {account && (
+          <Link
+            href="/account"
+            title={account.email}
+            className="flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-surface-2"
+          >
+            <Avatar name={account.name} photoUrl={account.avatarUrl} size={32} />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{account.name}</span>
             <span className="shrink-0 text-xs text-muted/70">v{APP_VERSION}</span>
-          </div>
+          </Link>
         )}
         <SignOutButton />
       </div>

@@ -26,7 +26,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SignOutButton } from "@/components/layout/sign-out-button";
 import { PricingCard } from "@/components/settings/pricing-card";
 import {
   Dialog,
@@ -81,14 +80,6 @@ export default function SettingsPage() {
       />
       <LockCard qc={qc} />
       <DisplayCard qc={qc} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Tài khoản</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SignOutButton className="border-2 border-border" />
-        </CardContent>
-      </Card>
     </div>
   );
 }

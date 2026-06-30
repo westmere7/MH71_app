@@ -171,7 +171,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <BigStat
             icon={Home}
             tone="info"
@@ -363,14 +363,19 @@ function BigStat({
   trendNeutral?: boolean; // muted (no good/bad colour) — e.g. electricity usage
 }) {
   return (
-    <Card className="flex flex-col gap-2 p-5 sm:p-6">
-      <div className="flex items-center justify-between">
+    <Card className="flex flex-col gap-2 p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-muted">{label}</span>
-        <span className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", BIG_TONES[tone])}>
-          <Icon className="h-6 w-6" />
+        <span
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-2xl sm:h-11 sm:w-11",
+            BIG_TONES[tone],
+          )}
+        >
+          <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
         </span>
       </div>
-      <div className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums sm:text-[2rem]">
+      <div className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums sm:text-[2rem]">
         {value}
       </div>
       <div className="flex flex-wrap items-center gap-x-2 text-sm text-muted">
@@ -400,7 +405,7 @@ function DashboardSkeleton() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <Skeleton className="h-8 w-56" />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-32" />
         ))}

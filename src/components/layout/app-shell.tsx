@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { MonthProvider } from "@/components/month-provider";
-import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { APP_VERSION } from "@/lib/constants";
+import { useAccount } from "@/lib/account";
+import { Avatar } from "@/components/ui/avatar";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { MonthSwitcher } from "./month-switcher";
@@ -11,19 +13,12 @@ import { ThemeToggle } from "./theme-toggle";
 import { UiScaleApplier } from "./ui-scale-applier";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  // read the email from the locally-cached session (no network round-trip)
-  const [userEmail, setUserEmail] = React.useState<string>();
-  React.useEffect(() => {
-    getSupabaseBrowser()
-      .auth.getSession()
-      .then(({ data }) => setUserEmail(data.session?.user?.email ?? undefined));
-  }, []);
-
+  const account = useAccount();
   return (
     <MonthProvider>
       <UiScaleApplier />
       <div className="flex min-h-screen">
-        <Sidebar userEmail={userEmail} />
+        <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
             <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
@@ -31,7 +26,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="text-xl font-extrabold md:hidden">MH71</span>
                 <MonthSwitcher />
               </div>
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                {/* mobile-only account shortcut (desktop uses the sidebar) */}
+                {account && (
+                  <Link href="/account" aria-label="Tài khoản" className="md:hidden">
+                    <Avatar name={account.name} photoUrl={account.avatarUrl} size={30} />
+                  </Link>
+                )}
+              </div>
             </div>
           </header>
           <main className="w-full flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">
