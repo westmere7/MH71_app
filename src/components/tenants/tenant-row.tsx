@@ -12,6 +12,7 @@ import {
   LogOut,
   Plus,
   History,
+  AlertCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
@@ -29,10 +30,10 @@ import { PaymentDialog } from "./payment-dialog";
 import { TenantFormDialog } from "./tenant-form-dialog";
 import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
 import { useMonthCtx } from "@/components/month-provider";
-import { qk, usePaymentLogs } from "@/lib/queries";
+import { qk, usePaymentLogs, useAllBills } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
 import type { StatusChoice } from "@/lib/constants";
-import { formatVND, formatNumber, formatDateTime } from "@/lib/format";
+import { formatVND, formatNumber, formatDateTime, monthLabel } from "@/lib/format";
 import type { Bill, MonthRow, PaymentStatus, Room, Tenant } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -61,7 +62,43 @@ export function TenantRow({
   hideChevron?: boolean; // when shown standalone in a dialog
 }) {
   const qc = useQueryClient();
-  const { selectedLocked: locked } = useMonthCtx();
+  const { selectedLocked: locked, months } = useMonthCtx();
+
+  const targetIndex = months.findIndex((m) => m.id === month.id);
+  const prevMonth =
+    targetIndex >= 0 && targetIndex < months.length - 1 ? months[targetIndex + 1] : null;
+
+  const now = React.useMemo(() => new Date(), []);
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const isPast = React.useCallback((m: MonthRow) => m.year < curY || (m.year === curY && m.month < curM), [curY, curM]);
+
+  const allBillsQ = useAllBills();
+  const allBills = allBillsQ.data ?? [];
+
+  const prevBill = React.useMemo(() => {
+    if (!prevMonth || !bill?.tenant_id) return null;
+    return allBills.find((b) => b.month_id === prevMonth.id && b.tenant_id === bill.tenant_id) ?? null;
+  }, [allBills, prevMonth, bill?.tenant_id]);
+
+  const { hasUnpaidPrev, prevOwed } = React.useMemo(() => {
+    if (!prevMonth || !isPast(prevMonth) || !prevBill) {
+      return { hasUnpaidPrev: false, prevOwed: 0 };
+    }
+    const isPaid = prevBill.payment_status === "paid_cash" || prevBill.payment_status === "paid_transfer";
+    const amountPaid = prevBill.amount_paid ?? prevBill.total;
+    const isUnpaidOrUnderpaid =
+      prevBill.payment_status === "unpaid" ||
+      prevBill.payment_status === "partial" ||
+      (isPaid && amountPaid < prevBill.total);
+    const owed = prevBill.total - (isPaid ? amountPaid : 0);
+
+    return {
+      hasUnpaidPrev: isUnpaidOrUnderpaid && owed > 0,
+      prevOwed: owed,
+    };
+  }, [prevMonth, prevBill, isPast]);
+
   const [cardOpen, setCardOpen] = React.useState(false);
   const [formOpen, setFormOpen] = React.useState(false);
   const [payOpen, setPayOpen] = React.useState(false);
@@ -213,7 +250,7 @@ export function TenantRow({
         >
           <div className="flex items-center gap-3 sm:gap-4">
             {/* room number — bold text (no box) so it reads as a label, not an avatar */}
-            <span className="w-8 shrink-0 text-center text-base font-extrabold tracking-tight text-primary">
+            <span className={cn("w-8 shrink-0 text-center text-base font-extrabold tracking-tight", hasUnpaidPrev ? "text-warning" : "text-primary")}>
               {room.code}
             </span>
             {/* avatar — tapping opens "Sửa thông tin" (add when empty);
@@ -245,7 +282,7 @@ export function TenantRow({
               ) : (
                 <>
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate font-semibold">{displayName}</span>
+                    <span className={cn("truncate font-semibold", hasUnpaidPrev && "text-warning")}>{displayName}</span>
                     {tenant?.camera_access && (
                       <Video className="h-4 w-4 shrink-0 text-primary" />
                     )}
@@ -329,6 +366,18 @@ export function TenantRow({
               </div>
             ) : (
               <>
+                {hasUnpaidPrev && prevMonth && (
+                  <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning-surface/40 px-4 py-3 text-sm text-warning font-semibold">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                      <p className="font-bold">Chưa thanh toán xong tháng trước</p>
+                      <p className="mt-0.5 text-muted-foreground text-xs font-normal">
+                        Khách thuê chưa thanh toán xong hoá đơn {monthLabel(prevMonth.year, prevMonth.month)}.
+                        Còn nợ: <span className="font-bold text-warning">{formatVND(prevOwed)}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <BreakdownRow
                     label="Tiền điện"

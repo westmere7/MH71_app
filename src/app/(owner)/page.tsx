@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { useRooms, useBills, useCurrentTenants, useAllTenants } from "@/lib/queries";
+import { useRooms, useBills, useCurrentTenants, useAllTenants, useAllBills } from "@/lib/queries";
 import { TenantRow } from "@/components/tenants/tenant-row";
 import { StatusChip } from "@/components/tenants/status-menu";
 import { isPaidStatus } from "@/lib/constants";
@@ -14,18 +14,43 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { Bill, Tenant } from "@/lib/supabase/types";
+import type { Bill, Tenant, MonthRow } from "@/lib/supabase/types";
 
 const OVERVIEW_COLS_KEY = "mh71.overview.cols";
 
 // Read-only-at-a-glance overview (kiosk friendly). Tapping a row opens the full
 // editable tenant card in a dialog.
 export default function OverviewPage() {
-  const { selectedMonth, settings, isLoading } = useMonthCtx();
+  const { selectedMonth, settings, isLoading, months } = useMonthCtx();
   const roomsQ = useRooms();
   const billsQ = useBills(selectedMonth?.id ?? null);
   const tenantsQ = useCurrentTenants();
   const allTenantsQ = useAllTenants();
+  const allBillsQ = useAllBills();
+
+  const targetIndex = months.findIndex((m) => m.id === selectedMonth?.id);
+  const prevMonth = targetIndex >= 0 && targetIndex < months.length - 1 ? months[targetIndex + 1] : null;
+
+  const now = React.useMemo(() => new Date(), []);
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const isPast = React.useCallback((m: MonthRow) => m.year < curY || (m.year === curY && m.month < curM), [curY, curM]);
+
+  const allBills = allBillsQ.data ?? [];
+
+  const hasUnpaidPrevOf = React.useCallback((roomId: string, currentTenantId: string | null) => {
+    if (!prevMonth || !isPast(prevMonth) || !currentTenantId) return false;
+    const prevBill = allBills.find((b) => b.month_id === prevMonth.id && b.room_id === roomId && b.tenant_id === currentTenantId);
+    if (!prevBill) return false;
+    const isPaid = prevBill.payment_status === "paid_cash" || prevBill.payment_status === "paid_transfer";
+    const amountPaid = prevBill.amount_paid ?? prevBill.total;
+    const isUnpaidOrUnderpaid =
+      prevBill.payment_status === "unpaid" ||
+      prevBill.payment_status === "partial" ||
+      (isPaid && amountPaid < prevBill.total);
+    const owed = prevBill.total - (isPaid ? amountPaid : 0);
+    return isUnpaidOrUnderpaid && owed > 0;
+  }, [allBills, prevMonth, isPast]);
 
   const [openRoomId, setOpenRoomId] = React.useState<string | null>(null);
 
@@ -90,7 +115,7 @@ export default function OverviewPage() {
     paid: bills.filter((b) => isPaidStatus(b.payment_status)).length,
   };
 
-  const loading = isLoading || roomsQ.isLoading || billsQ.isLoading;
+  const loading = isLoading || roomsQ.isLoading || billsQ.isLoading || allBillsQ.isLoading;
 
   if (loading) {
     return (
@@ -185,21 +210,23 @@ export default function OverviewPage() {
               const vacant = !b || b.payment_status === "vacant";
               const name = b?.tenant_name ?? t?.name ?? null;
               const phone = b?.tenant_phone ?? t?.phone ?? "";
+              const currentTenantId = b?.tenant_id ?? t?.id ?? null;
+              const unpaidPrev = hasUnpaidPrevOf(room.id, currentTenantId);
               return (
                 <tr
                   key={room.id}
                   onClick={() => setOpenRoomId(room.id)}
-                  className="cursor-pointer border-t border-border/50 hover:bg-primary/5"
+                  className="group cursor-pointer border-t border-border/50 hover:bg-primary/5"
                 >
-                  <td className={cn(cell, colWidth, "sticky left-0 z-10 bg-surface font-extrabold text-primary")}>
+                  <td className={cn(cell, colWidth, "sticky left-0 z-10 bg-surface group-hover:bg-primary/5 font-extrabold", unpaidPrev ? "text-warning" : "text-primary")}>
                     {room.code}
                   </td>
                   <td
                     className={cn(
                       txt,
                       nameLeft,
-                      "sticky z-10 bg-surface font-semibold",
-                      vacant && "text-muted",
+                      "sticky z-10 bg-surface group-hover:bg-primary/5 font-semibold",
+                      unpaidPrev ? "text-warning" : (vacant && "text-muted"),
                     )}
                   >
                     {name ?? "(trống)"}
