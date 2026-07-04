@@ -172,7 +172,11 @@ export function TenantRow({
       if (activeTenant) checkout(); // "Trống" while a tenant is in the room = trả phòng
       else statusMut.mutate({ status: "vacant" });
     } else {
-      if (shownStatus !== "unpaid") statusMut.mutate({ status: "unpaid" });
+      if (shownStatus !== "unpaid") {
+        if (window.confirm("Bạn có chắc chắn muốn đổi trạng thái sang Chưa thanh toán không?")) {
+          statusMut.mutate({ status: "unpaid" });
+        }
+      }
     }
   }
 
