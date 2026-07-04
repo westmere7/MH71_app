@@ -359,3 +359,125 @@ export async function createNextMonth(): Promise<MonthRow> {
 
   return newMonth;
 }
+
+export async function resetMonth(monthId: string): Promise<void> {
+  const sb = getSupabaseBrowser();
+
+  const [{ data: months }, { data: settings }, { data: rooms }, { data: tenants }] =
+    await Promise.all([
+      sb.from("months").select("*").order("year", { ascending: false }).order("month", {
+        ascending: false,
+      }),
+      sb.from("settings").select("*").eq("id", 1).single(),
+      sb.from("rooms").select("*").eq("is_active", true).order("sort_order"),
+      sb.from("tenants").select("*").is("move_out_date", null),
+    ]);
+
+  const monthList = (months ?? []) as MonthRow[];
+  const s = settings as Settings;
+  const roomList = (rooms ?? []) as Pick<
+    import("./supabase/types").Room,
+    "id" | "default_rent" | "default_trash" | "default_rate"
+  >[];
+  const tenantList = (tenants ?? []) as Tenant[];
+
+  const targetIndex = monthList.findIndex((m) => m.id === monthId);
+  if (targetIndex === -1) throw new Error("Month not found");
+  const targetMonth = monthList[targetIndex];
+  const prevMonth = targetIndex < monthList.length - 1 ? monthList[targetIndex + 1] : null;
+
+  let periodStart: string | null = null;
+  let periodEnd: string | null = null;
+  if (prevMonth) {
+    if (prevMonth.period_end) {
+      periodStart = prevMonth.period_end;
+      periodEnd = formatISO(addMonths(parseISO(prevMonth.period_end), 1), {
+        representation: "date",
+      });
+    }
+  } else {
+    periodStart = targetMonth.period_start;
+    periodEnd = targetMonth.period_end;
+  }
+  const otherFees = prevMonth?.other_fees ?? DEFAULT_TOTAL_COST;
+
+  const prevByRoom = new Map<string, Bill>();
+  if (prevMonth) {
+    const { data: prevBills } = await sb.from("bills").select("*").eq("month_id", prevMonth.id);
+    for (const b of (prevBills ?? []) as Bill[]) prevByRoom.set(b.room_id, b);
+  }
+  const tenantByRoom = new Map<string, Tenant>();
+  for (const t of tenantList) tenantByRoom.set(t.room_id, t);
+
+  // Delete all existing bills first
+  const { error: deleteError } = await sb.from("bills").delete().eq("month_id", monthId);
+  if (deleteError) throw deleteError;
+
+  // Reset target month metadata
+  const monthMetaPatch: Record<string, any> = {
+    meter_status: "chua",
+    fee_status: "chua",
+    collection_status: "chua",
+    other_fees: otherFees,
+    meter_note_photo_url: null,
+    meter_filled_at: null,
+  };
+  if ("evn_bill" in targetMonth) {
+    monthMetaPatch.evn_bill = 0;
+  }
+  if (periodStart) monthMetaPatch.period_start = periodStart;
+  if (periodEnd) monthMetaPatch.period_end = periodEnd;
+
+  const { error: updateMonthError } = await sb
+    .from("months")
+    .update(monthMetaPatch)
+    .eq("id", monthId);
+  if (updateMonthError) throw updateMonthError;
+
+  // Re-generate rows
+  const rows = roomList.map((r) => {
+    const prev = prevByRoom.get(r.id);
+
+    if (!prev) {
+      const tenant = tenantByRoom.get(r.id);
+      return {
+        month_id: monthId,
+        room_id: r.id,
+        tenant_id: tenant?.id ?? null,
+        tenant_name: tenant?.name ?? null,
+        tenant_phone: tenant?.phone ?? null,
+        reading_old: 0,
+        reading_new: null,
+        electricity_rate: r.default_rate ?? s.electricity_rate,
+        room_fee: r.default_rent,
+        trash_fee: r.default_trash ?? s.trash_fee,
+        payment_status: (tenant ? "unpaid" : "vacant") as PaymentStatus,
+      };
+    }
+
+    const hasTenant = prev.tenant_id != null;
+    return {
+      month_id: monthId,
+      room_id: r.id,
+      tenant_id: prev.tenant_id,
+      tenant_name: prev.tenant_name,
+      tenant_phone: prev.tenant_phone,
+      reading_old: prev.reading_new ?? prev.reading_old,
+      reading_new: null,
+      electricity_rate: prev.electricity_rate,
+      room_fee: prev.room_fee,
+      trash_fee: prev.trash_fee,
+      payment_status: (hasTenant ? "unpaid" : "vacant") as PaymentStatus,
+    };
+  });
+
+  if (rows.length) {
+    let { error } = await sb.from("bills").insert(rows);
+    if (error && /tenant_phone/i.test(error.message ?? "")) {
+      const stripped = rows.map(({ tenant_phone, ...rest }) => rest);
+      ({ error } = await sb.from("bills").insert(stripped));
+    }
+    if (error) throw error;
+  }
+}
+

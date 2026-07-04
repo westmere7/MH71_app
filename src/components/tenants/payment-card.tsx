@@ -36,7 +36,6 @@ export function PaymentCardDialog({
       const dataUrl = await toPng(cardRef.current, {
         pixelRatio: 2,
         cacheBust: true,
-        backgroundColor: "#ffffff",
       });
       const a = document.createElement("a");
       a.href = dataUrl;
@@ -111,18 +110,14 @@ export function PaymentCardDialog({
             </div>
 
             <p className="mt-3 text-center text-[12px] text-[#9aa3b8]">
-              Vui lòng thanh toán trước ngày{" "}
-              {month.period_end
-                ? new Date(month.period_end).toLocaleDateString("vi-VN")
-                : "—"}
-              . Cảm ơn quý khách!
+              Vui lòng thanh toán đúng hạn. Cảm ơn quý khách!
             </p>
           </div>
         </div>
 
         <Button onClick={download} disabled={busy} size="lg" className="w-full">
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-          Tải ảnh PNG
+          Tải ảnh
         </Button>
       </DialogContent>
     </Dialog>
