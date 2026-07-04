@@ -215,12 +215,19 @@ export function TenantRow({
   const shownStatus: PaymentStatus =
     bill?.payment_status === "partial" ? "unpaid" : (bill?.payment_status ?? "unpaid");
   // a vacant room's status can't be changed until a tenant is added ("Thêm khách")
+  const isPaid = bill?.payment_status === "paid_cash" || bill?.payment_status === "paid_transfer";
+  const canEditUnpaidInPast = locked && bill && !isPaid && bill.payment_status !== "vacant";
+  const statusDisabled = locked
+    ? !canEditUnpaidInPast
+    : (vacant || statusMut.isPending || checkoutMut.isPending);
+
   const statusEl = bill ? (
     <div onClick={(e) => e.stopPropagation()}>
       <StatusMenu
         status={shownStatus}
         onChoose={onChoose}
-        disabled={locked || vacant || statusMut.isPending || checkoutMut.isPending}
+        disabled={statusDisabled}
+        allowPaidOnly={locked}
       />
     </div>
   ) : (

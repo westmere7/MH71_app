@@ -39,10 +39,12 @@ export function StatusMenu({
   status,
   onChoose,
   disabled,
+  allowPaidOnly,
 }: {
   status: PaymentStatus;
   onChoose: (c: StatusChoice) => void;
   disabled?: boolean;
+  allowPaidOnly?: boolean;
 }) {
   const meta = PAYMENT_STATUS[status];
   const current = statusChoiceOf(status);
@@ -73,18 +75,22 @@ export function StatusMenu({
         <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {STATUS_CHOICES.map((c) => (
-          <DropdownMenuItem
-            key={c.value}
-            selected={c.value === current}
-            onSelect={() => onChoose(c.value)}
-          >
-            <span className="flex items-center gap-2">
-              <span className={cn("h-2.5 w-2.5 rounded-full", c.dot)} />
-              {c.label}
-            </span>
-          </DropdownMenuItem>
-        ))}
+        {STATUS_CHOICES.map((c) => {
+          const itemDisabled = allowPaidOnly && c.value !== "paid";
+          return (
+            <DropdownMenuItem
+              key={c.value}
+              selected={c.value === current}
+              disabled={itemDisabled}
+              onSelect={() => !itemDisabled && onChoose(c.value)}
+            >
+              <span className={cn("flex items-center gap-2", itemDisabled && "opacity-50 pointer-events-none")}>
+                <span className={cn("h-2.5 w-2.5 rounded-full", c.dot)} />
+                {c.label}
+              </span>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
