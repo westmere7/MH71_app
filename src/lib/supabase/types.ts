@@ -45,6 +45,7 @@ export interface Tenant {
   notes: string | null;
   same_household: boolean;
   camera_access: boolean;
+  documents: string[] | null;
   created_at: string;
   updated_at: string;
 }

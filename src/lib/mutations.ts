@@ -110,15 +110,26 @@ export interface TenantInput {
   notes: string | null;
   same_household: boolean;
   camera_access: boolean;
+  documents?: string[] | null;
 }
 
 export async function upsertTenant(input: TenantInput) {
   const sb = getSupabaseBrowser();
   if (input.id) {
     const { id, ...patch } = input;
-    return unwrap(await sb.from("tenants").update(patch).eq("id", id).select().single());
+    let res = await sb.from("tenants").update(patch).eq("id", id).select().single();
+    if (res.error && /documents/i.test(res.error.message ?? "")) {
+      const { documents, ...fallbackPatch } = patch as any;
+      res = await sb.from("tenants").update(fallbackPatch).eq("id", id).select().single();
+    }
+    return unwrap(res);
   }
-  return unwrap(await sb.from("tenants").insert(input).select().single());
+  let res = await sb.from("tenants").insert(input).select().single();
+  if (res.error && /documents/i.test(res.error.message ?? "")) {
+    const { documents, ...fallbackInput } = input as any;
+    res = await sb.from("tenants").insert(fallbackInput).select().single();
+  }
+  return unwrap(res);
 }
 
 /** Mark the current tenant of a room as moved out (history preserved). */

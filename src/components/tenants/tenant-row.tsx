@@ -13,6 +13,11 @@ import {
   Plus,
   History,
   AlertCircle,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
@@ -28,7 +33,8 @@ import { StatusMenu } from "./status-menu";
 import { PaymentCardDialog } from "./payment-card";
 import { PaymentDialog } from "./payment-dialog";
 import { TenantFormDialog } from "./tenant-form-dialog";
-import { updateBillStatus, moveOutTenant } from "@/lib/mutations";
+import { updateBillStatus, moveOutTenant, upsertTenant } from "@/lib/mutations";
+import { uploadImage } from "@/lib/upload";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, usePaymentLogs, useAllBills } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
@@ -104,6 +110,77 @@ export function TenantRow({
   const [payOpen, setPayOpen] = React.useState(false);
   const [logOpen, setLogOpen] = React.useState(false);
   const [payMethod, setPayMethod] = React.useState<"paid_cash" | "paid_transfer">("paid_transfer");
+  const [docUploading, setDocUploading] = React.useState(false);
+  const [viewDocIndex, setViewDocIndex] = React.useState<number | null>(null);
+
+  async function handleAddDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Chỉ cho phép tải lên hình ảnh.");
+      return;
+    }
+    if (!activeTenant) return;
+    setDocUploading(true);
+    try {
+      const url = await uploadImage(
+        "tenant-photos",
+        file,
+        `doc-tenant-${activeTenant.id}-`,
+        true
+      );
+      const currentDocs = activeTenant.documents ?? [];
+      const updatedDocs = [...currentDocs, url];
+      await upsertTenant({
+        id: activeTenant.id,
+        room_id: activeTenant.room_id,
+        name: activeTenant.name,
+        phone: activeTenant.phone,
+        move_in_date: activeTenant.move_in_date,
+        photo_url: activeTenant.photo_url,
+        notes: activeTenant.notes,
+        same_household: activeTenant.same_household,
+        camera_access: activeTenant.camera_access,
+        documents: updatedDocs,
+      });
+      qc.invalidateQueries({ queryKey: qk.tenants });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      toast.success("Đã tải tài liệu lên thành công.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Tải tài liệu lên thất bại.");
+    } finally {
+      setDocUploading(false);
+    }
+  }
+
+  async function handleDeleteDoc(url: string) {
+    if (!activeTenant) return;
+    if (!window.confirm("Bạn có chắc chắn muốn xoá tài liệu này?")) return;
+    try {
+      const currentDocs = activeTenant.documents ?? [];
+      const updatedDocs = currentDocs.filter((d) => d !== url);
+      await upsertTenant({
+        id: activeTenant.id,
+        room_id: activeTenant.room_id,
+        name: activeTenant.name,
+        phone: activeTenant.phone,
+        move_in_date: activeTenant.move_in_date,
+        photo_url: activeTenant.photo_url,
+        notes: activeTenant.notes,
+        same_household: activeTenant.same_household,
+        camera_access: activeTenant.camera_access,
+        documents: updatedDocs,
+      });
+      qc.invalidateQueries({ queryKey: qk.tenants });
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      toast.success("Đã xoá tài liệu.");
+      setViewDocIndex(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Xoá tài liệu thất bại.");
+    }
+  }
 
   const logsQ = usePaymentLogs(logOpen && bill ? bill.id : null);
 
@@ -444,6 +521,48 @@ export function TenantRow({
                   </p>
                 )}
 
+                {/* Documents section */}
+                {activeTenant && (
+                  <div className="mt-5 border-t border-border pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-bold text-foreground">Giấy tờ người thuê</span>
+                      {docUploading && (
+                        <span className="flex items-center gap-1.5 text-xs text-muted">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          Đang tải lên...
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2.5">
+                      {(activeTenant.documents ?? []).map((docUrl, idx) => (
+                        <div
+                          key={docUrl}
+                          className="group relative h-16 w-16 sm:h-20 sm:w-20 cursor-pointer overflow-hidden rounded-xl border border-border bg-surface bg-no-repeat bg-center bg-cover shadow-sm hover:border-primary transition-all"
+                          onClick={() => setViewDocIndex(idx)}
+                          style={{ backgroundImage: `url(${docUrl})` }}
+                        >
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                        </div>
+                      ))}
+                      
+                      {!locked && (
+                        <label className="flex h-16 w-16 sm:h-20 sm:w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border text-muted hover:bg-surface hover:text-primary hover:border-primary transition-all">
+                          <Plus className="h-5 w-5" />
+                          <span className="text-[10px] font-bold mt-1">Thêm ảnh</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleAddDoc}
+                            disabled={docUploading}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => setCardOpen(true)}>
                     <ReceiptText className="h-4 w-4" />
@@ -546,6 +665,77 @@ export function TenantRow({
             ) : (
               <p className="text-sm text-muted">Chưa có thay đổi nào được ghi nhận.</p>
             )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Document view & cycle dialog */}
+      {activeTenant && viewDocIndex !== null && (
+        <Dialog open={true} onOpenChange={() => setViewDocIndex(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between pr-6">
+                <span>Tài liệu {viewDocIndex + 1} của {activeTenant.name}</span>
+                {!locked && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-danger hover:bg-danger/10 hover:text-danger"
+                    onClick={() => {
+                      const docs = activeTenant.documents ?? [];
+                      if (viewDocIndex < docs.length) {
+                        handleDeleteDoc(docs[viewDocIndex]);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Xoá
+                  </Button>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="relative mt-2 flex items-center justify-center bg-black/5 dark:bg-black/25 rounded-2xl p-4 min-h-[300px]">
+              {/* Image display */}
+              {(() => {
+                const docs = activeTenant.documents ?? [];
+                const currentUrl = docs[viewDocIndex];
+                if (!currentUrl) return null;
+                return (
+                  <img
+                    src={currentUrl}
+                    alt={`Tài liệu ${viewDocIndex + 1}`}
+                    className="max-h-[60vh] w-full rounded-lg object-contain"
+                  />
+                );
+              })()}
+
+              {/* Cycling controls */}
+              {(() => {
+                const docs = activeTenant.documents ?? [];
+                if (docs.length <= 1) return null;
+                return (
+                  <>
+                    <button
+                      type="button"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/85 p-2 shadow-md hover:bg-surface text-foreground transition-colors"
+                      onClick={() => setViewDocIndex((viewDocIndex - 1 + docs.length) % docs.length)}
+                      aria-label="Tài liệu trước"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/85 p-2 shadow-md hover:bg-surface text-foreground transition-colors"
+                      onClick={() => setViewDocIndex((viewDocIndex + 1) % docs.length)}
+                      aria-label="Tài liệu sau"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
           </DialogContent>
         </Dialog>
       )}
