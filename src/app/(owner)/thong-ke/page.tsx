@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
+import { useTheme } from "next-themes";
 import { useAllBills } from "@/lib/queries";
 import { computeMonthStats, pctChange } from "@/lib/finance";
 import type { Bill, MonthRow } from "@/lib/supabase/types";
@@ -33,6 +34,12 @@ const CHART_MODES = [
 type ChartMode = (typeof CHART_MODES)[number]["key"];
 
 export default function DashboardPage() {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { months, selectedMonth, settings, isLoading } = useMonthCtx();
   const [chartMode, setChartMode] = React.useState<ChartMode>("all");
   const [yearSel, setYearSel] = React.useState<number | null>(null);
@@ -152,7 +159,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/header.jpg"
+            src={mounted && resolvedTheme === "dark" ? "/header_dark.jpg" : "/header.jpg"}
             alt="MH71"
             className="h-44 w-full rounded-2xl object-cover sm:h-56 shadow-sm border border-border"
           />
