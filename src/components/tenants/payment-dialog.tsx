@@ -125,6 +125,7 @@ export function PaymentDialog({
         <Button
           size="lg"
           className="mt-1"
+          disabled={partial && amount > total}
           onClick={() => onConfirm(method, partial ? amount : null)}
         >
           Xác nhận
