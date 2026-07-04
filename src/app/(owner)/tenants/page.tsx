@@ -96,9 +96,10 @@ export default function TenantsPage() {
   const matchesSearch = (room: (typeof rooms)[number]) => {
     if (!q) return true;
     const bill = billByRoom.get(room.id);
-    const tenant = tenantByRoom.get(room.id);
-    const name = (bill?.tenant_name ?? tenant?.name ?? "").toLowerCase();
-    const phone = bill?.tenant_phone ?? tenant?.phone ?? "";
+    const vacant = !bill || bill.payment_status === "vacant";
+    const tenant = vacant ? null : tenantByRoom.get(room.id);
+    const name = (vacant ? "" : (bill?.tenant_name ?? tenant?.name ?? "")).toLowerCase();
+    const phone = vacant ? "" : (bill?.tenant_phone ?? tenant?.phone ?? "");
     return room.code.toLowerCase().includes(q) || name.includes(q) || phone.includes(q);
   };
 
@@ -198,11 +199,13 @@ export default function TenantsPage() {
           {rows.map((room) => {
             const bill = billByRoom.get(room.id) ?? null;
             // the row's tenant is the person on THIS month's bill (by tenant_id,
-            // even if since moved out); fall back to the room's current tenant
-            const billTenant =
-              (bill?.tenant_id ? tenantById.get(bill.tenant_id) : undefined) ??
-              tenantByRoom.get(room.id) ??
-              null;
+            // even if since moved out); fall back to the room's current tenant (if no bill yet)
+            const vacant = bill?.payment_status === "vacant";
+            const billTenant = vacant
+              ? null
+              : (bill?.tenant_id
+                  ? tenantById.get(bill.tenant_id)
+                  : (!bill ? tenantByRoom.get(room.id) : null)) ?? null;
             return (
             <TenantRow
               key={room.id}

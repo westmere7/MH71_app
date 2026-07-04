@@ -169,7 +169,7 @@ export function TenantRow({
       setPayMethod(bill?.payment_status === "paid_cash" ? "paid_cash" : "paid_transfer");
       setPayOpen(true);
     } else if (c === "vacant") {
-      if (tenant) checkout(); // "Trống" while a tenant is in the room = trả phòng
+      if (activeTenant) checkout(); // "Trống" while a tenant is in the room = trả phòng
       else statusMut.mutate({ status: "vacant" });
     } else {
       if (shownStatus !== "unpaid") statusMut.mutate({ status: "unpaid" });
@@ -178,10 +178,11 @@ export function TenantRow({
 
   const total = bill?.total ?? 0;
   const vacant = bill?.payment_status === "vacant";
+  const activeTenant = vacant ? null : tenant;
   // the month's own record is authoritative; fall back to the live tenant only
   // for legacy bills that were imported without a name snapshot
-  const name = bill?.tenant_name ?? tenant?.name ?? null;
-  const phone = bill?.tenant_phone ?? tenant?.phone ?? null;
+  const name = vacant ? null : (bill?.tenant_name ?? tenant?.name ?? null);
+  const phone = vacant ? null : (bill?.tenant_phone ?? tenant?.phone ?? null);
   const displayName = !vacant && name ? name : "(Phòng trống)";
 
   function toggle() {
@@ -273,9 +274,15 @@ export function TenantRow({
               className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {vacant ? (
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Plus className="h-5 w-5" />
-                </span>
+                locked ? (
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-muted text-sm font-bold">
+                    -
+                  </span>
+                ) : (
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Plus className="h-5 w-5" />
+                  </span>
+                )
               ) : (
                 <Avatar name={name} photoUrl={photoUrl} size={40} />
               )}
@@ -283,14 +290,18 @@ export function TenantRow({
             {/* name + phone (occupied) — or a single hint line when empty */}
             <div className="min-w-0 flex-1">
               {vacant ? (
-                <div className="text-sm text-muted">
-                  {'Phòng trống, nhấn "+" để thêm người thuê mới'}
-                </div>
+                locked ? (
+                  <div className="text-sm text-muted">-</div>
+                ) : (
+                  <div className="text-sm text-muted">
+                    {'Phòng trống, nhấn "+" để thêm người thuê mới'}
+                  </div>
+                )
               ) : (
                 <>
                   <div className="flex items-center gap-1.5">
                     <span className={cn("truncate font-semibold", hasUnpaidPrev && "text-warning")}>{displayName}</span>
-                    {tenant?.camera_access && (
+                    {activeTenant?.camera_access && (
                       <Video className="h-4 w-4 shrink-0 text-primary" />
                     )}
                   </div>
@@ -334,7 +345,7 @@ export function TenantRow({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted">Tháng này chưa có hoá đơn cho phòng.</p>
                 <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
-                  {tenant ? "Sửa người thuê" : "Thêm người thuê"}
+                  {activeTenant ? "Sửa người thuê" : "Thêm người thuê"}
                 </Button>
               </div>
             ) : vacant ? (
@@ -429,7 +440,7 @@ export function TenantRow({
                     <ReceiptText className="h-4 w-4" />
                     Thẻ thanh toán
                   </Button>
-                  {tenant ? (
+                  {activeTenant ? (
                     <>
                       <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
                         <UserPen className="h-4 w-4" />
@@ -479,7 +490,7 @@ export function TenantRow({
         onOpenChange={setFormOpen}
         roomId={room.id}
         roomCode={room.code}
-        tenant={tenant}
+        tenant={activeTenant}
         defaultRent={room.default_rent}
         billId={bill?.id}
         billVacant={vacant}

@@ -95,12 +95,14 @@ export default function OverviewPage() {
     return m;
   }, [tenantsQ.data]);
 
-  // the row's tenant = the person on the bill (by tenant_id), else current tenant
+  // the row's tenant = the person on the bill (by tenant_id), else current tenant (if no bill yet)
   const tenantOf = React.useCallback(
-    (roomId: string, bill: Bill | null | undefined) =>
-      (bill?.tenant_id ? tenantById.get(bill.tenant_id) : undefined) ??
-      tenantByRoom.get(roomId) ??
-      null,
+    (roomId: string, bill: Bill | null | undefined) => {
+      if (bill?.payment_status === "vacant") return null;
+      return (bill?.tenant_id ? tenantById.get(bill.tenant_id) : undefined) ??
+        (!bill ? tenantByRoom.get(roomId) : null) ??
+        null;
+    },
     [tenantById, tenantByRoom],
   );
 
@@ -229,7 +231,7 @@ export default function OverviewPage() {
                       unpaidPrev ? "text-warning" : (vacant && "text-muted"),
                     )}
                   >
-                    {name ?? "(trống)"}
+                    {name ?? "-"}
                   </td>
                   {cols.phone && <td className={cn(txt, "text-muted")}>{phone}</td>}
                   {cols.units && <td className={num}>{recorded ? formatNumber(b!.units) : "—"}</td>}
