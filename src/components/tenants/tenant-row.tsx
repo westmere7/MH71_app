@@ -113,24 +113,58 @@ export function TenantRow({
   const [docUploading, setDocUploading] = React.useState(false);
   const [viewDocIndex, setViewDocIndex] = React.useState<number | null>(null);
 
+  const touchStartX = React.useRef<number | null>(null);
+  const touchEndX = React.useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const diffX = touchStartX.current - touchEndX.current;
+    const threshold = 50;
+
+    const docs = activeTenant?.documents ?? [];
+    if (docs.length <= 1) return;
+
+    if (diffX > threshold) {
+      setViewDocIndex((prev) => (prev !== null ? (prev + 1) % docs.length : null));
+    } else if (diffX < -threshold) {
+      setViewDocIndex((prev) =>
+        prev !== null ? (prev - 1 + docs.length) % docs.length : null
+      );
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
   async function handleAddDoc(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    const allImages = files.every((file) => file.type.startsWith("image/"));
+    if (!allImages) {
       toast.error("Chỉ cho phép tải lên hình ảnh.");
       return;
     }
+
     if (!activeTenant) return;
     setDocUploading(true);
     try {
-      const url = await uploadImage(
-        "tenant-photos",
-        file,
-        `doc-tenant-${activeTenant.id}-`,
-        true
+      const urls = await Promise.all(
+        files.map((file) =>
+          uploadImage("tenant-photos", file, `doc-tenant-${activeTenant.id}-`, true)
+        )
       );
       const currentDocs = activeTenant.documents ?? [];
-      const updatedDocs = [...currentDocs, url];
+      const updatedDocs = [...currentDocs, ...urls];
       await upsertTenant({
         id: activeTenant.id,
         room_id: activeTenant.room_id,
@@ -553,6 +587,7 @@ export function TenantRow({
                           <input
                             type="file"
                             accept="image/*"
+                            multiple
                             className="hidden"
                             onChange={handleAddDoc}
                             disabled={docUploading}
@@ -695,7 +730,12 @@ export function TenantRow({
               </DialogTitle>
             </DialogHeader>
 
-            <div className="relative mt-2 flex items-center justify-center bg-black/5 dark:bg-black/25 rounded-2xl p-4 min-h-[300px]">
+            <div
+              className="relative mt-2 flex items-center justify-center bg-black/5 dark:bg-black/25 rounded-2xl p-4 min-h-[300px] select-none touch-pan-y"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
               {/* Image display */}
               {(() => {
                 const docs = activeTenant.documents ?? [];
