@@ -431,7 +431,12 @@ export function TenantRow({
                 {bill.paid_at && (
                   <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
                     <Clock className="h-4 w-4" />
-                    {PAYMENT_STATUS[bill.payment_status].label} • {formatDateTime(bill.paid_at)}
+                    {bill.payment_status === "paid_cash"
+                      ? "Đã thanh toán (Tiền mặt)"
+                      : bill.payment_status === "paid_transfer"
+                      ? "Đã thanh toán (Chuyển khoản)"
+                      : PAYMENT_STATUS[bill.payment_status].label}{" "}
+                    • {formatDateTime(bill.paid_at)}
                   </p>
                 )}
 
