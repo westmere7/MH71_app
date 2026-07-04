@@ -34,7 +34,7 @@ import { PaymentCardDialog } from "./payment-card";
 import { PaymentDialog } from "./payment-dialog";
 import { TenantFormDialog } from "./tenant-form-dialog";
 import { updateBillStatus, moveOutTenant, upsertTenant } from "@/lib/mutations";
-import { uploadImage } from "@/lib/upload";
+import { uploadImage, deleteImage } from "@/lib/upload";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, usePaymentLogs, useAllBills } from "@/lib/queries";
 import { PAYMENT_STATUS, isUnderpaid, paidAmountOf } from "@/lib/constants";
@@ -192,6 +192,9 @@ export function TenantRow({
     if (!activeTenant) return;
     if (!window.confirm("Bạn có chắc chắn muốn xoá tài liệu này?")) return;
     try {
+      await deleteImage("tenant-photos", url).catch((err) => {
+        console.error("Storage delete fail:", err);
+      });
       const currentDocs = activeTenant.documents ?? [];
       const updatedDocs = currentDocs.filter((d) => d !== url);
       await upsertTenant({

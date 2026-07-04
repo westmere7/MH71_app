@@ -38,3 +38,21 @@ export async function uploadImage(
   const { data } = sb.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
+
+/**
+ * Delete a file from Supabase Storage by its public URL.
+ */
+export async function deleteImage(
+  bucket: "tenant-photos" | "meter-notes",
+  url: string,
+): Promise<void> {
+  const parts = url.split(`/public/${bucket}/`);
+  if (parts.length < 2) return;
+  const path = parts[1];
+
+  const sb = getSupabaseBrowser();
+  const { error } = await sb.storage.from(bucket).remove([path]);
+  if (error) {
+    console.error("Failed to delete file from storage:", error.message);
+  }
+}
