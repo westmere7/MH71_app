@@ -1,7 +1,7 @@
 import type { PaymentStatus, ProgressStatus } from "./supabase/types";
 
 export const APP_NAME = "MH71";
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.3.0";
 
 // "Chi phí tổng cộng": a fixed monthly bundle of external service fees the owner
 // pays (NOT electricity). Stored per month on months.other_fees; this is the
