@@ -20,6 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { formatNumber, formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Row {
   id: string;
@@ -77,7 +84,7 @@ export default function MeterPage() {
 }
 
 /* ------------------------------ gate ------------------------------- */
-function LoginGate({ onSuccess }: { onSuccess: () => void }) {
+function LoginGate({ onSuccess }: { onSuccess: () => Promise<void> }) {
   const [pw, setPw] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState(false);
@@ -86,14 +93,22 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
     e.preventDefault();
     setLoading(true);
     setErr(false);
-    const res = await fetch("/api/meter/auth", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ password: pw }),
-    });
-    setLoading(false);
-    if (res.ok) onSuccess();
-    else setErr(true);
+    try {
+      const res = await fetch("/api/meter/auth", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: pw }),
+      });
+      if (res.ok) {
+        await onSuccess();
+      } else {
+        setErr(true);
+        setLoading(false);
+      }
+    } catch {
+      setErr(true);
+      setLoading(false);
+    }
   }
 
   return (
@@ -150,6 +165,7 @@ function classify(value: string, readingOld: number): RowState {
 function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
   const rows = data.rows;
   const [submitting, setSubmitting] = React.useState(false);
+  const [showDoneModal, setShowDoneModal] = React.useState(false);
 
   // All edits are staged locally and only written on "submit" — nothing is sent
   // to the server until the button is pressed, so leaving the page discards them.
@@ -257,7 +273,7 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
         }),
       });
       if (!res.ok) throw new Error("submit");
-      toast.success(revising ? "Đã cập nhật số điện." : "Đã hoàn tất ghi điện. Cảm ơn!");
+      setShowDoneModal(true);
       reload();
     } catch {
       toast.error("Không gửi được, thử lại.");
@@ -332,6 +348,27 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
           </Button>
         </div>
       </div>
+
+      <Dialog open={showDoneModal} onOpenChange={setShowDoneModal}>
+        <DialogContent className="max-w-sm text-center p-6 flex flex-col items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10 text-success border border-success/15">
+            <CheckCircle2 className="h-10 w-10 text-success" />
+          </div>
+          
+          <div className="space-y-1">
+            <DialogTitle className="text-xl font-bold">Gửi số điện thành công!</DialogTitle>
+            <DialogDescription className="text-sm text-muted">
+              {revising
+                ? "Số điện mới của các phòng đã được cập nhật thành công lên hệ thống."
+                : `Đã hoàn tất ghi điện Tháng ${month.month}/${month.year} và gửi cho chủ trọ thành công.`}
+            </DialogDescription>
+          </div>
+
+          <Button onClick={() => setShowDoneModal(false)} className="w-full mt-2" size="lg">
+            Đóng
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -364,6 +401,14 @@ function MeterRow({
     warn = { tone: "info", msg: "Không thay đổi so với tháng trước" };
   }
 
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const target = e.target;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+  };
+
   return (
     <Card className={cn("p-4", rowState === "empty" && "border-danger/30")}>
       <div className="flex items-center gap-4">
@@ -382,6 +427,7 @@ function MeterRow({
             type="number"
             value={value}
             onChange={(e) => onValueChange(row.id, e.target.value)}
+            onFocus={handleFocus}
             placeholder="Số mới"
             className={cn(
               "w-28 text-center text-lg font-bold",
