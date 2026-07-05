@@ -21,6 +21,7 @@ import {
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
 import { createNextMonth, deleteMonth, resetMonth, updateSettings, updateMonthMeta } from "@/lib/mutations";
+import { uploadImage, deleteImage } from "@/lib/upload";
 import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,7 @@ export default function SettingsPage() {
       />
       <LockCard qc={qc} />
       <DisplayCard qc={qc} />
+      <QrCodeSettingsCard qc={qc} />
     </div>
   );
 }
@@ -571,6 +573,340 @@ function MeterExpenseCard({
             </Button>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* -------------------------- QR Code settings -------------------------- */
+function QrCodeSettingsCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const settings = useSettings().data;
+  const [imageSrc, setImageSrc] = React.useState<string | null>(null);
+  const [originalFile, setOriginalFile] = React.useState<File | null>(null);
+  const [dragStart, setDragStart] = React.useState<{ x: number; y: number } | null>(null);
+  const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+  const [initialOffset, setInitialOffset] = React.useState({ x: 0, y: 0 });
+  const [scale, setScale] = React.useState(1.0);
+  const [saving, setSaving] = React.useState(false);
+
+  const frameRef = React.useRef<HTMLDivElement | null>(null);
+  const imageElRef = React.useRef<HTMLImageElement | null>(null);
+
+  const onStart = (clientX: number, clientY: number) => {
+    setDragStart({ x: clientX, y: clientY });
+    setInitialOffset({ x: offset.x, y: offset.y });
+  };
+
+  const onMove = (clientX: number, clientY: number) => {
+    if (!dragStart) return;
+    const dx = clientX - dragStart.x;
+    const dy = clientY - dragStart.y;
+    setOffset({
+      x: initialOffset.x + dx,
+      y: initialOffset.y + dy,
+    });
+  };
+
+  const onEnd = () => {
+    setDragStart(null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOriginalFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageSrc(reader.result as string);
+      setOffset({ x: 0, y: 0 });
+      setScale(1.0);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveQr = async () => {
+    if (!imageElRef.current || !frameRef.current || !imageSrc || !originalFile) return;
+    setSaving(true);
+    try {
+      const img = new Image();
+      img.src = imageSrc;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          toast.error("Không thể tạo canvas.");
+          setSaving(false);
+          return;
+        }
+
+        const frameRect = frameRef.current!.getBoundingClientRect();
+        const imgRect = imageElRef.current!.getBoundingClientRect();
+
+        const xPct = (frameRect.left - imgRect.left) / imgRect.width;
+        const yPct = (frameRect.top - imgRect.top) / imgRect.height;
+        const wPct = frameRect.width / imgRect.width;
+        const hPct = frameRect.height / imgRect.height;
+
+        const sX = img.naturalWidth * xPct;
+        const sY = img.naturalHeight * yPct;
+        const sW = img.naturalWidth * wPct;
+        const sH = img.naturalHeight * hPct;
+
+        canvas.width = sW;
+        canvas.height = sH;
+
+        // Fill background with white (same as receipt card) in case crop window goes outside image bounds
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, sW, sH);
+
+        ctx.drawImage(img, sX, sY, sW, sH, 0, 0, sW, sH);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            toast.error("Không thể nén ảnh.");
+            setSaving(false);
+            return;
+          }
+          try {
+            const fileToUpload = new File([blob], "qr_code.webp", { type: "image/webp" });
+            const url = await uploadImage("tenant-photos", fileToUpload, "qr_", false);
+            await updateSettings({ qr_code_url: url });
+            qc.invalidateQueries({ queryKey: qk.settings });
+            toast.success("Đã lưu QR Code chủ tài khoản");
+            setImageSrc(null);
+            setOriginalFile(null);
+            setOffset({ x: 0, y: 0 });
+            setScale(1.0);
+          } catch (e: any) {
+            toast.error(`Lỗi tải lên: ${e.message}`);
+          } finally {
+            setSaving(false);
+          }
+        }, "image/webp", 0.9);
+      };
+    } catch (e: any) {
+      toast.error(`Lỗi: ${e.message}`);
+      setSaving(false);
+    }
+  };
+
+  const deleteQr = async () => {
+    if (!settings?.qr_code_url) return;
+    if (!confirm("Xác nhận xoá QR Code chủ tài khoản?")) return;
+    try {
+      await deleteImage("tenant-photos", settings.qr_code_url);
+      await updateSettings({ qr_code_url: null });
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success("Đã xoá QR Code");
+    } catch (e: any) {
+      toast.error(`Lỗi: ${e.message}`);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center gap-2">
+        <Zap className="h-5 w-5 text-primary" />
+        <CardTitle>Hình QR chủ tài khoản</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">Mã QR Thanh Toán</span>
+          <p className="text-sm text-muted">
+            Tải lên ảnh QR chuyển khoản để hiển thị trên Thẻ thanh toán của khách thuê.
+          </p>
+        </div>
+
+        {/* Warning notification banner */}
+        <div className="flex gap-2.5 rounded-xl bg-warning-surface p-3 text-warning border border-warning/15">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="text-xs leading-normal">
+            <span className="font-bold">Lưu ý bảo mật:</span> Bạn nên cắt ảnh để ẩn các thông tin nhạy cảm khác (như số dư, nút chức năng ngân hàng, v.v.), chỉ để lại mã QR và thông tin số tài khoản.
+          </div>
+        </div>
+
+        {settings?.qr_code_url && !imageSrc && (
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+            <div className="text-xs font-semibold text-muted">Mã QR hiện tại:</div>
+            <div className="flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={settings.qr_code_url}
+                alt="QR Code chủ tài khoản"
+                className="max-h-48 rounded-lg border border-border object-contain shadow-sm bg-white"
+              />
+              <Button variant="outline" size="sm" className="text-danger" onClick={deleteQr}>
+                <Trash2 className="h-4 w-4" />
+                Xoá QR Code
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="qr-file-input" className="cursor-pointer">
+            <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-surface-2 transition-colors">
+              <Camera className="h-4 w-4" />
+              {settings?.qr_code_url ? "Thay đổi ảnh QR Code" : "Tải lên ảnh QR Code"}
+            </span>
+          </Label>
+          <input
+            id="qr-file-input"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {imageSrc && (
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-muted uppercase">CẮT ẢNH: Kéo ảnh để căn chỉnh và dùng thanh trượt để zoom</span>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              {/* Workspace Container */}
+              <div
+                className="relative w-full aspect-square max-w-[320px] overflow-hidden bg-zinc-950 rounded-xl cursor-move touch-none flex justify-center items-center select-none border border-border"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onStart(e.clientX, e.clientY);
+                }}
+                onMouseMove={(e) => {
+                  if (dragStart) {
+                    e.preventDefault();
+                    onMove(e.clientX, e.clientY);
+                  }
+                }}
+                onMouseUp={onEnd}
+                onMouseLeave={onEnd}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  if (touch) onStart(touch.clientX, touch.clientY);
+                }}
+                onTouchMove={(e) => {
+                  const touch = e.touches[0];
+                  if (touch) onMove(touch.clientX, touch.clientY);
+                }}
+                onTouchEnd={onEnd}
+              >
+                {/* Image behind the frame */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={imageElRef}
+                  src={imageSrc}
+                  alt="Original to crop"
+                  style={{
+                    transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                    transformOrigin: "center center",
+                    transition: dragStart ? "none" : "transform 0.15s ease-out",
+                  }}
+                  className="max-w-[85%] max-h-[85%] object-contain select-none pointer-events-none"
+                />
+
+                {/* Fixed Crop Frame Overlay */}
+                <div
+                  ref={frameRef}
+                  className="absolute pointer-events-none z-10 w-[240px] h-[240px] border-2 border-white border-solid rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                />
+              </div>
+
+              {/* Sliders and Actions */}
+              <div className="flex-1 w-full space-y-4">
+                <style dangerouslySetInnerHTML={{__html: `
+                  .custom-zoom-slider {
+                    -webkit-appearance: none;
+                    width: 100%;
+                    height: 20px;
+                    background: transparent;
+                    cursor: pointer;
+                  }
+                  .custom-zoom-slider:focus {
+                    outline: none;
+                  }
+                  .custom-zoom-slider::-webkit-slider-runnable-track {
+                    width: 100%;
+                    height: 6px;
+                    background: #d4d4d8; /* zinc-300 for clear contrast */
+                    border-radius: 9999px;
+                  }
+                  .dark .custom-zoom-slider::-webkit-slider-runnable-track {
+                    background: #52525b; /* zinc-600 */
+                  }
+                  .custom-zoom-slider::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    height: 18px;
+                    width: 18px;
+                    border-radius: 9999px;
+                    background: var(--color-primary, #0e8aa3);
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+                    margin-top: -6px;
+                  }
+                  .dark .custom-zoom-slider::-webkit-slider-thumb {
+                    border-color: #1b2a4a; /* surface dark */
+                  }
+                  .custom-zoom-slider::-moz-range-track {
+                    width: 100%;
+                    height: 6px;
+                    background: #d4d4d8;
+                    border-radius: 9999px;
+                  }
+                  .dark .custom-zoom-slider::-moz-range-track {
+                    background: #52525b;
+                  }
+                  .custom-zoom-slider::-moz-range-thumb {
+                    height: 18px;
+                    width: 18px;
+                    border-radius: 9999px;
+                    background: var(--color-primary, #0e8aa3);
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+                  }
+                  .dark .custom-zoom-slider::-moz-range-thumb {
+                    border-color: #1b2a4a;
+                  }
+                `}} />
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span>Phóng to / Thu nhỏ (Zoom):</span>
+                    <span>{scale.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="5.0"
+                    step="0.1"
+                    value={scale}
+                    onChange={(e) => setScale(Number(e.target.value))}
+                    className="custom-zoom-slider my-2"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button disabled={saving} onClick={saveQr} className="flex-1 py-3 text-sm font-bold">
+                    {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                    Cắt &amp; Lưu QR Code
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={saving}
+                    onClick={() => {
+                      setImageSrc(null);
+                      setOriginalFile(null);
+                      setOffset({ x: 0, y: 0 });
+                      setScale(1.0);
+                    }}
+                    className="px-4 py-3 text-sm font-semibold"
+                  >
+                    Huỷ
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

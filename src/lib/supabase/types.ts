@@ -20,6 +20,7 @@ export interface Settings {
   ui_scale: number; // interface + text scale; 1 = default (migration 0007)
   lock_past_months: boolean; // lock every month except the newest (migration 0009)
   updated_at: string;
+  qr_code_url?: string | null;
 }
 
 export interface Room {

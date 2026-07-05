@@ -148,9 +148,12 @@ export async function moveOutTenant(tenantId: string, moveOutDate: string) {
 // ---- Settings ----
 export async function updateSettings(patch: Partial<Settings>) {
   const sb = getSupabaseBrowser();
-  return unwrap(
-    await sb.from("settings").update(patch).eq("id", 1).select().single(),
-  );
+  let res = await sb.from("settings").update(patch).eq("id", 1).select().single();
+  if (res.error && /qr_code_url/i.test(res.error.message ?? "")) {
+    const { qr_code_url, ...fallbackPatch } = patch as any;
+    res = await sb.from("settings").update(fallbackPatch).eq("id", 1).select().single();
+  }
+  return unwrap(res);
 }
 
 /**

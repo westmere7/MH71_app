@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatVND, formatNumber, monthLabel, periodLabel } from "@/lib/format";
 import type { Bill, MonthRow, Room } from "@/lib/supabase/types";
 import { toast } from "sonner";
+import { useSettings } from "@/lib/queries";
 
 export function PaymentCardDialog({
   open,
@@ -28,6 +29,7 @@ export function PaymentCardDialog({
 }) {
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
+  const settings = useSettings().data;
 
   async function download() {
     if (!cardRef.current) return;
@@ -70,7 +72,7 @@ export function PaymentCardDialog({
         <div
           ref={cardRef}
           style={{ fontFamily: "var(--font-be-vietnam), sans-serif" }}
-          className="overflow-hidden rounded-2xl border border-[#e3e7f1] bg-white"
+          className="overflow-hidden rounded-2xl border border-[#e3e7f1] bg-white text-[#16203c]"
         >
           <div className="bg-[#1b2a4a] px-5 py-4 text-white">
             <div className="flex items-center justify-between">
@@ -86,8 +88,8 @@ export function PaymentCardDialog({
 
           <div className="px-5 py-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[15px] font-bold text-[#16203c]">
-                {tenantName ?? "—"}
+              <span className="text-[14px] font-medium text-[#5a647e]">
+                Khách thuê: {tenantName ?? "—"}
               </span>
               <span className="text-[13px] text-[#9aa3b8]">
                 {periodLabel(month.period_start, month.period_end)}
@@ -112,6 +114,19 @@ export function PaymentCardDialog({
             <p className="mt-3 text-center text-[12px] text-[#9aa3b8]">
               Vui lòng thanh toán đúng hạn. Cảm ơn quý khách!
             </p>
+
+            {settings?.qr_code_url && (
+              <div className="mt-4 border-t border-dashed border-[#dfe3ee] pt-3 flex flex-col items-center">
+                <span className="text-[13px] font-semibold text-[#5a647e] mb-2">MÃ QR QUÉT THANH TOÁN</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={settings.qr_code_url}
+                  crossOrigin="anonymous"
+                  alt="QR Code thanh toán"
+                  className="w-[280px] h-[280px] object-contain rounded-lg border border-[#e3e7f1] shadow-sm bg-white"
+                />
+              </div>
+            )}
           </div>
         </div>
 
