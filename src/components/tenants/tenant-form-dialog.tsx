@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Upload, Plus, Trash2, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Loader2, Upload, Plus, Trash2, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -136,6 +136,28 @@ export function TenantFormDialog({
     } catch (err) {
       console.error(err);
       toast.error("Xoá tài liệu thất bại.");
+    }
+  }
+
+  async function handleClearAllDocs() {
+    if (documents.length === 0) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xoá tất cả ${documents.length} tài liệu của người thuê này?`)) return;
+    setDocUploading(true);
+    try {
+      await Promise.all(
+        documents.map((url) =>
+          deleteImage("tenant-photos", url).catch((err) => {
+            console.error("Storage delete fail:", err);
+          })
+        )
+      );
+      setDocuments([]);
+      toast.success("Đã xoá tất cả tài liệu.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Xoá tài liệu thất bại.");
+    } finally {
+      setDocUploading(false);
     }
   }
 
@@ -305,14 +327,26 @@ export function TenantFormDialog({
 
           {/* Documents Section */}
           <div className="border-t border-border pt-4">
-            <div className="flex items-center justify-between mb-3">
+             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-bold text-foreground">Giấy tờ người thuê</span>
-              {docUploading && (
-                <span className="flex items-center gap-1.5 text-xs text-muted">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  Đang tải...
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {documents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllDocs}
+                    className="text-xs font-semibold text-danger hover:underline"
+                    disabled={docUploading}
+                  >
+                    Xoá tất cả
+                  </button>
+                )}
+                {docUploading && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    Đang tải...
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2.5">
@@ -324,6 +358,19 @@ export function TenantFormDialog({
                   style={{ backgroundImage: `url(${docUrl})` }}
                 >
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  
+                  {/* Delete button directly on thumbnail */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDoc(docUrl);
+                    }}
+                    className="absolute top-1 right-1 z-10 h-5 w-5 rounded-full bg-black/60 text-white hover:bg-danger transition-colors flex items-center justify-center border border-white/20"
+                    aria-label="Xoá hình ảnh"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
 
