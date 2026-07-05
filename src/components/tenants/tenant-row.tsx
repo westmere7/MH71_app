@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Download,
   Image as ImageIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -406,45 +407,60 @@ export function TenantRow({
               )}
             </button>
             {/* name + phone (occupied) — or a single hint line when empty */}
-            <div className="min-w-0 flex-1">
-              {vacant ? (
-                locked ? (
-                  <div className="text-sm text-muted">-</div>
+            <div className="min-w-0 flex-1 flex items-center gap-2.5">
+              <div className="min-w-0">
+                {vacant ? (
+                  locked ? (
+                    <div className="text-sm text-muted">-</div>
+                  ) : (
+                    <div className="text-sm text-muted">
+                      {'Phòng trống, nhấn "+" để thêm người thuê mới'}
+                    </div>
+                  )
                 ) : (
-                  <div className="text-sm text-muted">
-                    {'Phòng trống, nhấn "+" để thêm người thuê mới'}
-                  </div>
-                )
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <span className={cn("truncate font-semibold", hasUnpaidPrev && "text-warning")}>{displayName}</span>
-                    {activeTenant?.camera_access && (
-                      <Video className="h-4 w-4 shrink-0 text-primary" />
-                    )}
-                  </div>
-                  <div className="mt-0.5 truncate text-sm text-muted">
-                    {phone ? (
-                      <a
-                        href={`tel:${phone}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:underline"
-                      >
-                        {phone}
-                      </a>
-                    ) : (
-                      "Chưa có SĐT"
-                    )}
-                  </div>
-                </>
+                  <>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={cn("truncate font-semibold", hasUnpaidPrev && "text-warning")}>{displayName}</span>
+                      {activeTenant?.camera_access && (
+                        <Video className="h-4 w-4 shrink-0 text-primary" />
+                      )}
+                    </div>
+                    <div className="mt-0.5 truncate text-sm text-muted">
+                      {phone ? (
+                        <a
+                          href={`tel:${phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:underline"
+                        >
+                          {phone}
+                        </a>
+                      ) : (
+                        "Chưa có SĐT"
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {activeTenant && !locked && open && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="hidden sm:inline-flex font-bold gap-1.5 border-primary bg-primary/5 text-primary transition-all shadow-sm h-9 px-4 text-sm shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFormOpen(true);
+                  }}
+                >
+                  <UserPen className="h-4 w-4" />
+                  Sửa thông tin
+                </Button>
               )}
             </div>
-            {/* mobile: amount stacked over status. desktop: fixed-width columns so
-                different status widths can't shift the fee, divider centered between */}
-            <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-0">
-              <div className="sm:w-36 sm:text-right">{totalEl}</div>
-              <div className="hidden sm:mx-3 sm:block sm:h-6 sm:w-px sm:bg-border/60" />
-              <div className="flex justify-end sm:w-32 sm:justify-start">{statusEl}</div>
+
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <div>{totalEl}</div>
+              <div className="flex justify-end">{statusEl}</div>
             </div>
             {!hideChevron && (
               <ChevronDown
@@ -559,7 +575,7 @@ export function TenantRow({
                 )}
 
                 {/* Documents section */}
-                {activeTenant && (
+                {activeTenant && activeTenant.documents && activeTenant.documents.length > 0 && (
                   <div className="mt-5 border-t border-border pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-bold text-foreground">Giấy tờ người thuê</span>
@@ -583,20 +599,7 @@ export function TenantRow({
                         </div>
                       ))}
                       
-                      {!locked && (
-                        <label className="flex h-16 w-16 sm:h-20 sm:w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border text-muted hover:bg-surface hover:text-primary hover:border-primary transition-all">
-                          <Plus className="h-5 w-5" />
-                          <span className="text-[10px] font-bold mt-1">Thêm ảnh</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={handleAddDoc}
-                            disabled={docUploading}
-                          />
-                        </label>
-                      )}
+                      {/* No upload button here, only viewable */}
                     </div>
                   </div>
                 )}
@@ -608,7 +611,7 @@ export function TenantRow({
                   </Button>
                   {activeTenant ? (
                     <>
-                      <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)}>
+                      <Button size="sm" variant="outline" disabled={locked} onClick={() => setFormOpen(true)} className="sm:hidden">
                         <UserPen className="h-4 w-4" />
                         Sửa thông tin
                       </Button>
@@ -714,22 +717,21 @@ export function TenantRow({
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between pr-6">
                 <span>Tài liệu {viewDocIndex + 1} của {activeTenant.name}</span>
-                {!locked && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 text-danger hover:bg-danger/10 hover:text-danger"
-                    onClick={() => {
-                      const docs = activeTenant.documents ?? [];
-                      if (viewDocIndex < docs.length) {
-                        handleDeleteDoc(docs[viewDocIndex]);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Xoá
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 text-primary hover:bg-primary/10"
+                  onClick={() => {
+                    const docs = activeTenant.documents ?? [];
+                    const currentUrl = docs[viewDocIndex];
+                    if (currentUrl) {
+                      downloadFile(currentUrl, `document-${viewDocIndex + 1}.webp`);
+                    }
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Tải xuống
+                </Button>
               </DialogTitle>
             </DialogHeader>
 
@@ -820,4 +822,21 @@ function BreakdownRow({
       <span className="font-semibold">{value}</span>
     </div>
   );
+}
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    window.open(url, "_blank");
+  }
 }

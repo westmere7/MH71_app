@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, Plus, Trash2, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
   updateBillTenant,
   type TenantInput,
 } from "@/lib/mutations";
-import { uploadImage } from "@/lib/upload";
+import { uploadImage, deleteImage } from "@/lib/upload";
 import { qk, useSettings } from "@/lib/queries";
 import { formatVND } from "@/lib/format";
 import type { Tenant } from "@/lib/supabase/types";
@@ -62,6 +62,83 @@ export function TenantFormDialog({
   const [uploading, setUploading] = React.useState(false);
   const [viewOpen, setViewOpen] = React.useState(false);
 
+  const [documents, setDocuments] = React.useState<string[]>([]);
+  const [docUploading, setDocUploading] = React.useState(false);
+  const [viewDocIndex, setViewDocIndex] = React.useState<number | null>(null);
+
+  const touchStartX = React.useRef<number | null>(null);
+  const touchEndX = React.useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const diffX = touchStartX.current - touchEndX.current;
+    const threshold = 50;
+
+    if (documents.length <= 1) return;
+
+    if (diffX > threshold) {
+      setViewDocIndex((prev) => (prev !== null ? (prev + 1) % documents.length : null));
+    } else if (diffX < -threshold) {
+      setViewDocIndex((prev) =>
+        prev !== null ? (prev - 1 + documents.length) % documents.length : null
+      );
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
+  async function handleAddDocs(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    const allImages = files.every((file) => file.type.startsWith("image/"));
+    if (!allImages) {
+      toast.error("Chỉ cho phép tải lên hình ảnh.");
+      return;
+    }
+
+    setDocUploading(true);
+    try {
+      const urls = await Promise.all(
+        files.map((file) =>
+          uploadImage("tenant-photos", file, `doc-tenant-${tenant?.id ?? "new"}-`, true)
+        )
+      );
+      setDocuments((prev) => [...prev, ...urls]);
+      toast.success("Đã tải tài liệu lên thành công.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Tải tài liệu lên thất bại.");
+    } finally {
+      setDocUploading(false);
+    }
+  }
+
+  async function handleDeleteDoc(url: string) {
+    if (!window.confirm("Bạn có chắc chắn muốn xoá tài liệu này?")) return;
+    try {
+      await deleteImage("tenant-photos", url).catch((err) => {
+        console.error("Storage delete fail:", err);
+      });
+      setDocuments((prev) => prev.filter((d) => d !== url));
+      toast.success("Đã xoá tài liệu.");
+      setViewDocIndex(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Xoá tài liệu thất bại.");
+    }
+  }
+
   // reset form whenever the dialog opens for a (different) tenant — prefer this
   // month's recorded name/phone (what the card shows) over the tenant record
   React.useEffect(() => {
@@ -72,6 +149,7 @@ export function TenantFormDialog({
     setNotes(tenant?.notes ?? "");
     setPhotoUrl(tenant?.photo_url ?? null);
     setCameraAccess(tenant?.camera_access ?? false);
+    setDocuments(tenant?.documents ?? []);
     setBasePrice(defaultRent);
   }, [open, tenant, defaultRent, billName, billPhone]);
 
@@ -87,6 +165,7 @@ export function TenantFormDialog({
         notes: notes.trim() || null,
         same_household: tenant?.same_household ?? false,
         camera_access: cameraAccess,
+        documents: documents,
       };
       const saved = await upsertTenant(input);
       // base price is the same field as in "Thiết lập giá" (rooms.default_rent).
@@ -224,6 +303,45 @@ export function TenantFormDialog({
             />
           </div>
 
+          {/* Documents Section */}
+          <div className="border-t border-border pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold text-foreground">Giấy tờ người thuê</span>
+              {docUploading && (
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  Đang tải...
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2.5">
+              {documents.map((docUrl, idx) => (
+                <div
+                  key={docUrl}
+                  className="group relative h-16 w-16 cursor-pointer overflow-hidden rounded-xl border border-border bg-surface bg-no-repeat bg-center bg-cover shadow-sm hover:border-primary transition-all"
+                  onClick={() => setViewDocIndex(idx)}
+                  style={{ backgroundImage: `url(${docUrl})` }}
+                >
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                </div>
+              ))}
+
+              <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border text-muted hover:bg-surface hover:text-primary hover:border-primary transition-all">
+                <Plus className="h-5 w-5" />
+                <span className="text-[10px] font-bold mt-1">Thêm ảnh</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleAddDocs}
+                  disabled={docUploading}
+                />
+              </label>
+            </div>
+          </div>
+
           <div className="mt-1 flex flex-col gap-2">
             <Button
               onClick={() => save.mutate()}
@@ -253,8 +371,110 @@ export function TenantFormDialog({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Document view & cycle dialog */}
+      {viewDocIndex !== null && (
+        <Dialog open={true} onOpenChange={() => setViewDocIndex(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center justify-between pr-6">
+                <span>Tài liệu {viewDocIndex + 1}</span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-primary hover:bg-primary/10"
+                    onClick={() => {
+                      const currentUrl = documents[viewDocIndex];
+                      if (currentUrl) {
+                        downloadFile(currentUrl, `document-${viewDocIndex + 1}.webp`);
+                      }
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Tải xuống
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 text-danger hover:bg-danger/10 hover:text-danger"
+                    onClick={() => {
+                      const currentUrl = documents[viewDocIndex];
+                      if (currentUrl) {
+                        handleDeleteDoc(currentUrl);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Xoá
+                  </Button>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div
+              className="relative mt-2 flex items-center justify-center bg-black/5 dark:bg-black/25 rounded-2xl p-4 min-h-[300px] select-none touch-pan-y"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Image display */}
+              {(() => {
+                const currentUrl = documents[viewDocIndex];
+                if (!currentUrl) return null;
+                return (
+                  <img
+                    src={currentUrl}
+                    alt={`Tài liệu ${viewDocIndex + 1}`}
+                    className="max-h-[60vh] w-full rounded-lg object-contain"
+                  />
+                );
+              })()}
+
+              {/* Cycling controls */}
+              {documents.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/85 p-2 shadow-md hover:bg-surface text-foreground transition-colors"
+                    onClick={() => setViewDocIndex((viewDocIndex - 1 + documents.length) % documents.length)}
+                    aria-label="Tài liệu trước"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/85 p-2 shadow-md hover:bg-surface text-foreground transition-colors"
+                    onClick={() => setViewDocIndex((viewDocIndex + 1) % documents.length)}
+                    aria-label="Tài liệu sau"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
+}
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    window.open(url, "_blank");
+  }
 }
 
 function CheckRow({
