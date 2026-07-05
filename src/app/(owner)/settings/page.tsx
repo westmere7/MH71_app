@@ -669,7 +669,7 @@ function QrCodeSettingsCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           }
           try {
             const fileToUpload = new File([blob], "qr_code.webp", { type: "image/webp" });
-            const url = await uploadImage("tenant-photos", fileToUpload, "qr_", false);
+            const url = await uploadImage("tenant-photos", fileToUpload, "qr_", true);
             await updateSettings({ qr_code_url: url });
             qc.invalidateQueries({ queryKey: qk.settings });
             toast.success("Đã lưu QR Code chủ tài khoản");
@@ -682,7 +682,7 @@ function QrCodeSettingsCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           } finally {
             setSaving(false);
           }
-        }, "image/webp", 0.9);
+        }, "image/webp", 0.7);
       };
     } catch (e: any) {
       toast.error(`Lỗi: ${e.message}`);

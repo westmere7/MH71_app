@@ -227,8 +227,20 @@ function MeterForm({ data, reload }: { data: MeterData; reload: () => void }) {
       // 1) upload the staged photo now (if any), else keep/remove the existing one
       let notePhotoUrl = removeExisting ? null : existingUrl;
       if (stagedFile) {
+        // Dynamic import to keep page load fast
+        const imageCompression = (await import("browser-image-compression")).default;
+        const options = {
+          maxSizeMB: 0.2, // Aggressive limit: 200KB
+          maxWidthOrHeight: 1280,
+          useWebWorker: true,
+          fileType: "image/webp",
+          initialQuality: 0.7, // Aggressive compression: 70% quality
+        };
+        const compressedBlob = await imageCompression(stagedFile, options);
+        const compressedFile = new File([compressedBlob], "note.webp", { type: "image/webp" });
+
         const form = new FormData();
-        form.append("file", stagedFile);
+        form.append("file", compressedFile);
         form.append("monthId", month.id);
         const up = await fetch("/api/meter/note", { method: "POST", body: form });
         if (!up.ok) throw new Error("upload");

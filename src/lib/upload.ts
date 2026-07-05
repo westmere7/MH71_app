@@ -11,27 +11,25 @@ export async function uploadImage(
   bucket: "tenant-photos" | "meter-notes",
   file: File,
   keyPrefix = "",
-  toWebp = false,
+  toWebp = true, // default to true
 ): Promise<string> {
   const options: any = {
-    maxSizeMB: 0.6,
+    maxSizeMB: 0.2, // Aggressive limit: 200KB
     maxWidthOrHeight: 1280,
     useWebWorker: true,
+    fileType: "image/webp", // Enforce WebP globally
+    initialQuality: 0.7, // Aggressive compression: 70% quality
   };
-  if (toWebp) {
-    options.fileType = "image/webp";
-  }
   const compressed = await imageCompression(file, options);
 
-  const ext = toWebp ? "webp" : (file.name.split(".").pop() || "jpg").toLowerCase();
-  // avoid Date.now()-style nondeterminism concerns is irrelevant here (browser)
+  const ext = "webp";
   const rand = Math.random().toString(36).slice(2, 10);
   const path = `${keyPrefix}${rand}.${ext}`;
 
   const sb = getSupabaseBrowser();
   const { error } = await sb.storage.from(bucket).upload(path, compressed, {
     upsert: true,
-    contentType: compressed.type || (toWebp ? "image/webp" : "image/jpeg"),
+    contentType: "image/webp",
   });
   if (error) throw error;
 
