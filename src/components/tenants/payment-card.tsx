@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toPng } from "html-to-image";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatVND, formatNumber, monthLabel, periodLabel } from "@/lib/format";
@@ -46,6 +46,57 @@ export function PaymentCardDialog({
       toast.success("Đã tải thẻ thanh toán");
     } catch {
       toast.error("Không tạo được ảnh, thử lại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function share() {
+    if (!cardRef.current) return;
+    setBusy(true);
+    try {
+      const dataUrl = await toPng(cardRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const filename = `MH71_${room.code}_T${month.month}_${month.year}.png`;
+      const file = new File([blob], filename, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Thẻ thanh toán — ${room.code}`,
+          text: `Phiếu báo tiền phòng ${room.code} tháng ${month.month}/${month.year}`,
+        });
+        toast.success("Đã mở bảng chia sẻ thành công");
+      } else {
+        // Fallback: Copy to clipboard!
+        if (typeof window !== "undefined" && (window as any).ClipboardItem) {
+          try {
+            await navigator.clipboard.write([
+              new (window as any).ClipboardItem({
+                [blob.type]: blob,
+              }),
+            ]);
+            toast.success("Đã sao chép ảnh vào bộ nhớ tạm. Hãy mở Zalo và nhấn Ctrl+V (Cmd+V) để dán gửi!");
+            return;
+          } catch (clipErr) {
+            console.error("Clipboard copy failed, falling back to download:", clipErr);
+          }
+        }
+        // Fallback 2: download
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = filename;
+        a.click();
+        toast.info("Trình duyệt không hỗ trợ chia sẻ. Đã tự động tải ảnh.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Không thể thực hiện chia sẻ.");
     } finally {
       setBusy(false);
     }
@@ -130,10 +181,16 @@ export function PaymentCardDialog({
           </div>
         </div>
 
-        <Button onClick={download} disabled={busy} size="lg" className="w-full">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
-          Tải ảnh
-        </Button>
+        <div className="flex gap-2.5">
+          <Button onClick={share} disabled={busy} size="lg" className="flex-1">
+            {busy ? <Loader2 className="h-5 w-5 animate-spin mr-1.5" /> : <Send className="h-5 w-5 mr-1.5" />}
+            Chia sẻ
+          </Button>
+          <Button onClick={download} disabled={busy} size="lg" variant="outline" className="flex-1">
+            {busy ? <Loader2 className="h-5 w-5 animate-spin mr-1.5" /> : <Download className="h-5 w-5 mr-1.5" />}
+            Tải ảnh
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
