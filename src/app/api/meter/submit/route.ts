@@ -120,29 +120,33 @@ export async function POST(request: Request) {
   const rooms = roomUnits.map(({ code, units }) => ({ code, units }));
   const unitsTotal = roomUnits.reduce((sum, r) => sum + r.units, 0);
   after(async () => {
-    try {
-      const parseEmails = (s: string | null | undefined) =>
-        (s ?? "")
-          .split(/[,;\s]+/)
-          .map((t) => t.trim())
-          .filter(Boolean);
-      let recipients = parseEmails(process.env.OWNER_NOTIFY_EMAIL);
-      const s = await sb.from("settings").select("notify_email").eq("id", 1).single();
-      if (!s.error && s.data?.notify_email) recipients = parseEmails(s.data.notify_email as string);
-      if (recipients.length === 0) return; // nobody to notify
+    const parseEmails = (s: string | null | undefined) =>
+      (s ?? "")
+        .split(/[,;\s]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+    let recipients = parseEmails(process.env.OWNER_NOTIFY_EMAIL);
+    const s = await sb.from("settings").select("notify_email").eq("id", 1).single();
+    if (!s.error && s.data?.notify_email) recipients = parseEmails(s.data.notify_email as string);
+    if (recipients.length === 0) return; // nobody to notify
 
-      await sendMeterEmail({
-        to: recipients,
-        kind: firstFill ? "filled" : "updated",
-        monthLabel: month ? `Tháng ${month.month}/${month.year}` : "",
-        rooms,
-        unitsTotal,
-        filledAt,
-        notePhotoUrl: body.notePhotoUrl ?? null,
-        appUrl: origin,
-      });
-    } catch (e) {
-      console.error("[meter/submit] notify email failed:", e);
+    // Send one email per recipient so a rejected address (e.g. Resend's
+    // test-mode "own inbox only" limit) never blocks delivery to the others.
+    for (const to of recipients) {
+      try {
+        await sendMeterEmail({
+          to,
+          kind: firstFill ? "filled" : "updated",
+          monthLabel: month ? `Tháng ${month.month}/${month.year}` : "",
+          rooms,
+          unitsTotal,
+          filledAt,
+          notePhotoUrl: body.notePhotoUrl ?? null,
+          appUrl: origin,
+        });
+      } catch (e) {
+        console.error(`[meter/submit] notify email failed for ${to}:`, e);
+      }
     }
   });
 
