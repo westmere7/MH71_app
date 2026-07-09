@@ -43,14 +43,24 @@ export function UpdateWatcher() {
 
   React.useEffect(() => {
     check();
+    // Returning to the app is the key signal on mobile (background timers are
+    // frozen while the tab is hidden / screen is off) — and it's the only
+    // moment a popup is actually visible. Cover every "came back" event.
     const onFocus = () => check();
     const onVis = () => document.visibilityState === "visible" && check();
+    // pageshow fires on restore from the mobile back-forward cache (bfcache)
+    const onPageShow = () => check();
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
-    const id = window.setInterval(check, 5 * 60 * 1000);
+    window.addEventListener("pageshow", onPageShow);
+    // while actively foreground, poll faster so it also pops without leaving
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") check();
+    }, 60 * 1000);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onPageShow);
       window.clearInterval(id);
     };
   }, [check]);
