@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { isMeterAuthed } from "@/lib/meter-auth";
 import { createServiceClient } from "@/lib/supabase/service";
+import { sendMeterEmail } from "@/lib/email";
 
 interface SubmitBody {
   monthId?: string;
@@ -61,23 +62,70 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: writeErr.error.message }, { status: 500 });
   }
 
-  // finalize the month: note photo + completion + timestamp.
-  // gracefully fall back if migration 0006 (meter_filled_at) isn't applied yet.
-  let { error } = await sb
-    .from("months")
-    .update({
-      meter_note_photo_url: body.notePhotoUrl,
-      meter_status: "xong",
-      meter_filled_at: new Date().toISOString(),
-    })
-    .eq("id", body.monthId);
-  if (error && /meter_filled_at/i.test(error.message ?? "")) {
+  // read the month BEFORE finalizing: whether we've already emailed decides
+  // "first fill" vs "correction" (gracefully handle a missing 0013 column).
+  let month: { year: number; month: number; meter_notified_at: string | null } | null = null;
+  {
+    const r = await sb
+      .from("months")
+      .select("year, month, meter_notified_at")
+      .eq("id", body.monthId)
+      .single();
+    if (r.error && /meter_notified_at/i.test(r.error.message ?? "")) {
+      const r2 = await sb.from("months").select("year, month").eq("id", body.monthId).single();
+      month = r2.data ? { ...(r2.data as { year: number; month: number }), meter_notified_at: null } : null;
+    } else {
+      month = (r.data as typeof month) ?? null;
+    }
+  }
+  const firstFill = !month?.meter_notified_at;
+  const filledAt = new Date().toISOString();
+
+  // finalize the month: note photo + completion + timestamp. On the first fill,
+  // stamp meter_notified_at so retries/redeploys never re-send the first email.
+  // Gracefully fall back if migration 0006/0013 columns aren't applied yet.
+  const finalize: Record<string, unknown> = {
+    meter_note_photo_url: body.notePhotoUrl,
+    meter_status: "xong",
+    meter_filled_at: filledAt,
+  };
+  if (firstFill) finalize.meter_notified_at = filledAt;
+
+  let { error } = await sb.from("months").update(finalize).eq("id", body.monthId);
+  if (error && /(meter_filled_at|meter_notified_at)/i.test(error.message ?? "")) {
     ({ error } = await sb
       .from("months")
       .update({ meter_note_photo_url: body.notePhotoUrl, meter_status: "xong" })
       .eq("id", body.monthId));
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // notify the owner AFTER responding — never block or fail the submit on email.
+  const origin = new URL(request.url).origin;
+  const unitsTotal = billRows.reduce(
+    (sum, b) => sum + (Number(readingById.get(b.id)) - b.reading_old),
+    0,
+  );
+  after(async () => {
+    try {
+      let to = process.env.OWNER_NOTIFY_EMAIL || null;
+      const s = await sb.from("settings").select("notify_email").eq("id", 1).single();
+      if (!s.error && s.data?.notify_email) to = s.data.notify_email as string;
+      if (!to) return; // nobody to notify
+
+      await sendMeterEmail({
+        to,
+        kind: firstFill ? "filled" : "updated",
+        monthLabel: month ? `Tháng ${month.month}/${month.year}` : "",
+        unitsTotal,
+        filledAt,
+        notePhotoUrl: body.notePhotoUrl ?? null,
+        dashboardUrl: `${origin}/thong-ke`,
+      });
+    } catch (e) {
+      console.error("[meter/submit] notify email failed:", e);
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

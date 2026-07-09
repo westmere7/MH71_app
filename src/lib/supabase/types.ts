@@ -21,6 +21,7 @@ export interface Settings {
   lock_past_months: boolean; // lock every month except the newest (migration 0009)
   updated_at: string;
   qr_code_url?: string | null;
+  notify_email?: string | null; // where to email when số điện is filled (migration 0013)
 }
 
 export interface Room {
@@ -64,6 +65,7 @@ export interface MonthRow {
   evn_bill: number; // actual EVN electricity bill the owner pays (migration 0010)
   meter_note_photo_url: string | null;
   meter_filled_at: string | null; // khi quản lý bấm "Hoàn tất ghi điện"
+  meter_notified_at: string | null; // when the owner was first emailed (migration 0013)
   created_at: string;
 }
 

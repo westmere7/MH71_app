@@ -38,9 +38,19 @@ export default function OverviewPage() {
 
   const allBills = allBillsQ.data ?? [];
 
-  const hasUnpaidPrevOf = React.useCallback((roomId: string, currentTenantId: string | null) => {
+  const hasUnpaidPrevOf = React.useCallback((roomId: string, currentTenantId: string | null, currentName: string | null) => {
     if (!prevMonth || !isPast(prevMonth) || !currentTenantId) return false;
-    const prevBill = allBills.find((b) => b.month_id === prevMonth.id && b.room_id === roomId && b.tenant_id === currentTenantId);
+    const norm = (s?: string | null) => (s ?? "").trim().toLowerCase();
+    // same person only — the tenant_id can survive a rename-in-place when a new
+    // tenant moves into the room this month, so also require the name snapshot
+    // to match (the debt belongs to last month's person, not whoever is here now).
+    const prevBill = allBills.find(
+      (b) =>
+        b.month_id === prevMonth.id &&
+        b.room_id === roomId &&
+        b.tenant_id === currentTenantId &&
+        norm(b.tenant_name) === norm(currentName),
+    );
     if (!prevBill) return false;
     const isPaid = prevBill.payment_status === "paid_cash" || prevBill.payment_status === "paid_transfer";
     const amountPaid = prevBill.amount_paid ?? prevBill.total;
@@ -213,7 +223,7 @@ export default function OverviewPage() {
               const name = b?.tenant_name ?? t?.name ?? null;
               const phone = b?.tenant_phone ?? t?.phone ?? "";
               const currentTenantId = b?.tenant_id ?? t?.id ?? null;
-              const unpaidPrev = hasUnpaidPrevOf(room.id, currentTenantId);
+              const unpaidPrev = hasUnpaidPrevOf(room.id, currentTenantId, b?.tenant_name ?? null);
               return (
                 <tr
                   key={room.id}

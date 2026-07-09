@@ -85,8 +85,20 @@ export function TenantRow({
 
   const prevBill = React.useMemo(() => {
     if (!prevMonth || !bill?.tenant_id) return null;
-    return allBills.find((b) => b.month_id === prevMonth.id && b.tenant_id === bill.tenant_id) ?? null;
-  }, [allBills, prevMonth, bill?.tenant_id]);
+    const norm = (s?: string | null) => (s ?? "").trim().toLowerCase();
+    // Match last month's bill for the SAME tenant. The tenant_id can survive a
+    // rename-in-place (a new person moving into the room this month reuses the
+    // mirrored tenant record), so also require the name snapshot to match —
+    // the debt belongs to last month's person, not whoever is here now.
+    return (
+      allBills.find(
+        (b) =>
+          b.month_id === prevMonth.id &&
+          b.tenant_id === bill.tenant_id &&
+          norm(b.tenant_name) === norm(bill.tenant_name),
+      ) ?? null
+    );
+  }, [allBills, prevMonth, bill?.tenant_id, bill?.tenant_name]);
 
   const { hasUnpaidPrev, prevOwed } = React.useMemo(() => {
     if (!prevMonth || !isPast(prevMonth) || !prevBill) {
@@ -408,39 +420,47 @@ export function TenantRow({
             </button>
             {/* name + phone (occupied) — or a single hint line when empty */}
             <div className="min-w-0 flex-1 flex items-center gap-2.5">
-              <div className="min-w-0">
-                {vacant ? (
-                  locked ? (
+              {vacant ? (
+                <div className="min-w-0">
+                  {locked ? (
                     <div className="text-sm text-muted">-</div>
                   ) : (
                     <div className="text-sm text-muted">
                       {'Phòng trống, nhấn "+" để thêm người thuê mới'}
                     </div>
-                  )
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={cn("truncate font-semibold", hasUnpaidPrev && "text-warning")}>{displayName}</span>
-                      {activeTenant?.camera_access && (
-                        <Video className="h-4 w-4 shrink-0 text-primary" />
-                      )}
-                    </div>
-                    <div className="mt-0.5 truncate text-sm text-muted">
-                      {phone ? (
-                        <a
-                          href={`tel:${phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:underline"
-                        >
-                          {phone}
-                        </a>
-                      ) : (
-                        "Chưa có SĐT"
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+                  )}
+                </div>
+              ) : (
+                // tapping name / phone opens "Sửa thông tin" (edit name, phone…)
+                <div
+                  role={locked ? undefined : "button"}
+                  tabIndex={locked ? undefined : 0}
+                  aria-label={locked ? undefined : "Sửa thông tin"}
+                  onClick={(e) => {
+                    if (locked) return;
+                    e.stopPropagation();
+                    setFormOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!locked && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setFormOpen(true);
+                    }
+                  }}
+                  className={cn("min-w-0", !locked && "cursor-pointer")}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate font-semibold">{displayName}</span>
+                    {activeTenant?.camera_access && (
+                      <Video className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-muted">
+                    {phone ? phone : "Chưa có SĐT"}
+                  </div>
+                </div>
+              )}
 
               {activeTenant && !locked && open && (
                 <Button

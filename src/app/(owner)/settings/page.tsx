@@ -17,6 +17,7 @@ import {
   ALargeSmall,
   Lock,
   RotateCcw,
+  Mail,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
@@ -81,9 +82,63 @@ export default function SettingsPage() {
         hint="Áp dụng cho toàn bộ ứng dụng."
       />
       <LockCard qc={qc} />
+      <NotifyCard qc={qc} />
       <DisplayCard qc={qc} />
       <QrCodeSettingsCard qc={qc} />
     </div>
+  );
+}
+
+/* ------------------------- email notification ----------------------- */
+function NotifyCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const settings = useSettings().data;
+  const [email, setEmail] = React.useState("");
+  React.useEffect(() => {
+    setEmail(settings?.notify_email ?? "");
+  }, [settings?.notify_email]);
+
+  const save = useMutation({
+    mutationFn: () => updateSettings({ notify_email: email.trim() || null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success("Đã lưu email nhận thông báo");
+    },
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0013."),
+  });
+
+  const changed = email.trim() !== (settings?.notify_email ?? "");
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center gap-2">
+        <Mail className="h-5 w-5 text-primary" />
+        <CardTitle>Thông báo email</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm text-muted">
+          Gửi email cho bạn mỗi khi quản lý ghi xong (hoặc cập nhật lại) số điện của tháng.
+          Để trống nếu không muốn nhận thông báo.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            placeholder="ban@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Button
+            onClick={() => save.mutate()}
+            disabled={!changed || save.isPending}
+            className="shrink-0"
+          >
+            {save.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mail className="h-5 w-5" />}
+            Lưu
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
