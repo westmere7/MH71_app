@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { HouseMark } from "@/components/brand/house-mark";
 import { NAV_ITEMS } from "./nav-items";
 import { SignOutButton } from "./sign-out-button";
-import { APP_VERSION } from "@/lib/constants";
 import { useAccount } from "@/lib/account";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -58,7 +57,6 @@ export function Sidebar() {
           >
             <Avatar name={account.name} photoUrl={account.avatarUrl} size={32} />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold">{account.name}</span>
-            <span className="shrink-0 text-xs text-muted/70">v{APP_VERSION}</span>
           </Link>
         )}
         <SignOutButton />

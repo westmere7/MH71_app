@@ -9,7 +9,6 @@ import {
   Trash2,
   Zap,
   Camera,
-  ExternalLink,
   Copy,
   CheckCircle2,
   AlertCircle,
@@ -19,7 +18,6 @@ import {
   RotateCcw,
   Mail,
   Send,
-  X,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
@@ -469,41 +467,30 @@ function MeterExpenseCard({
     onError: () => toast.error("Lưu thất bại. Cần chạy migration 0010."),
   });
 
-  // emails notified when số điện is filled — universal (not tied to this month).
-  // Stored as a comma-separated list in settings.notify_email.
-  const parseEmails = (s?: string | null) =>
-    (s ?? "").split(/[,;\s]+/).map((t) => t.trim()).filter(Boolean);
-  const [emails, setEmails] = React.useState<string[]>([]);
-  const [emailDraft, setEmailDraft] = React.useState("");
+  // email notified when số điện is filled — universal (not tied to this month).
+  // One address for now; verify a domain in Resend later to send to more.
+  const [notifyEmail, setNotifyEmail] = React.useState("");
   React.useEffect(() => {
-    setEmails(parseEmails(settings?.notify_email));
+    setNotifyEmail(settings?.notify_email ?? "");
   }, [settings?.notify_email]);
 
   const saveNotify = useMutation({
-    mutationFn: () => updateSettings({ notify_email: emails.join(", ") || null }),
+    mutationFn: () => updateSettings({ notify_email: notifyEmail.trim() || null }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.settings });
       toast.success("Đã lưu email nhận thông báo");
     },
     onError: () => toast.error("Lưu không thành công. Cần chạy migration 0013."),
   });
-  const savedEmails = parseEmails(settings?.notify_email);
-  const notifyChanged = emails.join(",") !== savedEmails.join(",");
+  const notifyChanged = notifyEmail.trim() !== (settings?.notify_email ?? "");
 
-  function addEmail() {
-    const e = emailDraft.trim().toLowerCase();
-    if (!e) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+  function saveNotifyEmail() {
+    const e = notifyEmail.trim();
+    if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
       toast.error("Email không hợp lệ.");
       return;
     }
-    if (emails.includes(e)) {
-      toast.error("Email đã có trong danh sách.");
-      setEmailDraft("");
-      return;
-    }
-    setEmails((prev) => [...prev, e]);
-    setEmailDraft("");
+    saveNotify.mutate();
   }
 
   // full URL of the meter page, resolved on the client (for display + copy)
@@ -540,25 +527,24 @@ function MeterExpenseCard({
           <div className="flex flex-col gap-1.5 rounded-xl bg-surface p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted">Đường link</span>
-              <span className="truncate font-semibold">{origin}/dien</span>
+              <a
+                href={origin ? `${origin}/dien` : "/dien"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate font-semibold text-primary hover:underline"
+              >
+                {origin}/dien
+              </a>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-border pt-1.5">
               <span className="text-muted">Mật khẩu</span>
               <span className="text-base font-extrabold tracking-wide text-primary">mh71</span>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button size="lg" onClick={copyMeterLink} className="h-16 flex-1 sm:h-13">
-              <Copy className="h-5 w-5" />
-              Copy link + mật khẩu
-            </Button>
-            <a href="/dien" target="_blank" rel="noopener noreferrer">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                <ExternalLink className="h-5 w-5" />
-                Mở thử
-              </Button>
-            </a>
-          </div>
+          <Button size="lg" onClick={copyMeterLink} className="h-14 w-full sm:h-13">
+            <Copy className="h-5 w-5" />
+            Copy link + mật khẩu
+          </Button>
         </div>
 
         {/* meter status + note photo, one tidy block */}
@@ -631,72 +617,44 @@ function MeterExpenseCard({
         </div>
 
         {/* email notification when the manager fills số điện (universal setting) */}
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <div className="flex flex-col gap-1">
-            <Label className="flex items-center gap-1.5">
-              <Mail className="h-4 w-4 text-muted" />
-              Email nhận thông báo
-            </Label>
-            <p className="text-sm text-muted">
-              Gửi email cho những địa chỉ dưới đây mỗi khi quản lý ghi xong (hoặc cập nhật lại) số
-              điện. Thêm nhiều email rồi bấm Lưu.
-            </p>
-          </div>
-
-          {emails.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {emails.map((e) => (
-                <span
-                  key={e}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-3 pr-1.5 text-sm"
-                >
-                  {e}
-                  <button
-                    type="button"
-                    onClick={() => setEmails((prev) => prev.filter((x) => x !== e))}
-                    aria-label={`Xoá ${e}`}
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-danger-surface hover:text-danger"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <Label htmlFor="notify-email" className="flex items-center gap-1.5">
+            <Mail className="h-4 w-4 text-muted" />
+            Email nhận thông báo
+          </Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
+              id="notify-email"
               type="email"
               inputMode="email"
               autoCapitalize="none"
-              value={emailDraft}
-              onChange={(e) => setEmailDraft(e.target.value)}
+              value={notifyEmail}
+              onChange={(e) => setNotifyEmail(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  addEmail();
+                  saveNotifyEmail();
                 }
               }}
               placeholder="ban@email.com"
             />
-            <Button type="button" variant="outline" onClick={addEmail} className="shrink-0">
-              <Plus className="h-4 w-4" />
-              Thêm
+            <Button
+              onClick={saveNotifyEmail}
+              disabled={!notifyChanged || saveNotify.isPending}
+              className="shrink-0"
+            >
+              {saveNotify.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5" />
+              )}
+              Lưu
             </Button>
           </div>
-
-          <Button
-            onClick={() => saveNotify.mutate()}
-            disabled={!notifyChanged || saveNotify.isPending}
-            className="self-start"
-          >
-            {saveNotify.isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="h-5 w-5" />
-            )}
-            Lưu danh sách
-          </Button>
+          <p className="text-sm text-muted">
+            Gửi email cho bạn mỗi khi quản lý ghi xong (hoặc cập nhật lại) số điện. Để trống nếu
+            không muốn nhận thông báo.
+          </p>
         </div>
 
       </CardContent>

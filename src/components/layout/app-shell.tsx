@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </header>
           <main className="w-full flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">
             {children}
-            <div className="mt-8 text-center text-xs text-muted/60 md:hidden">
+            <div className="mt-8 text-center text-xs text-muted/60">
               MH71 • phiên bản v{APP_VERSION}
             </div>
           </main>
