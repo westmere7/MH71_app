@@ -121,13 +121,18 @@ export async function POST(request: Request) {
   const unitsTotal = roomUnits.reduce((sum, r) => sum + r.units, 0);
   after(async () => {
     try {
-      let to = process.env.OWNER_NOTIFY_EMAIL || null;
+      const parseEmails = (s: string | null | undefined) =>
+        (s ?? "")
+          .split(/[,;\s]+/)
+          .map((t) => t.trim())
+          .filter(Boolean);
+      let recipients = parseEmails(process.env.OWNER_NOTIFY_EMAIL);
       const s = await sb.from("settings").select("notify_email").eq("id", 1).single();
-      if (!s.error && s.data?.notify_email) to = s.data.notify_email as string;
-      if (!to) return; // nobody to notify
+      if (!s.error && s.data?.notify_email) recipients = parseEmails(s.data.notify_email as string);
+      if (recipients.length === 0) return; // nobody to notify
 
       await sendMeterEmail({
-        to,
+        to: recipients,
         kind: firstFill ? "filled" : "updated",
         monthLabel: month ? `Tháng ${month.month}/${month.year}` : "",
         rooms,
