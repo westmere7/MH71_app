@@ -548,7 +548,7 @@ function MeterExpenseCard({
             </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button size="lg" onClick={copyMeterLink} className="flex-1">
+            <Button size="lg" onClick={copyMeterLink} className="h-16 flex-1 sm:h-13">
               <Copy className="h-5 w-5" />
               Copy link + mật khẩu
             </Button>
