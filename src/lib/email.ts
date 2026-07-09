@@ -10,10 +10,11 @@ export interface MeterEmailOpts {
   to: string;
   kind: MeterEmailKind; // "filled" = first time, "updated" = manager resubmitted corrections
   monthLabel: string; // e.g. "Tháng 6/2026"
+  rooms: { code: string; units: number }[]; // per-room số điện, in display order
   unitsTotal: number; // total số điện recorded across all rooms
   filledAt: string; // ISO timestamp
   notePhotoUrl: string | null; // photo of the handwritten meter note
-  dashboardUrl: string; // link back to /thong-ke
+  appUrl: string; // link to the app home page
 }
 
 /**
@@ -40,15 +41,33 @@ export async function sendMeterEmail(opts: MeterEmailOpts): Promise<void> {
     timeZone: "Asia/Ho_Chi_Minh",
   });
 
+  const roomRows = opts.rooms
+    .map(
+      (r) =>
+        `<tr><td style="padding:5px 0;border-bottom:1px solid #f1f5f9">${r.code}</td>
+             <td style="padding:5px 0;text-align:right;border-bottom:1px solid #f1f5f9;font-variant-numeric:tabular-nums">${viNum.format(r.units)}</td></tr>`,
+    )
+    .join("");
+
   const html = `
   <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
     <h2 style="margin:0 0 4px">${heading}</h2>
-    <p style="margin:0 0 16px;color:#64748b">${opts.monthLabel}</p>
-    <table style="width:100%;border-collapse:collapse;font-size:15px">
-      <tr><td style="padding:6px 0;color:#64748b">Tổng số điện</td>
-          <td style="padding:6px 0;text-align:right;font-weight:700">${viNum.format(opts.unitsTotal)} số</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b">Thời gian ghi</td>
-          <td style="padding:6px 0;text-align:right">${when}</td></tr>
+    <p style="margin:0 0 8px;color:#64748b">${opts.monthLabel} · ghi lúc ${when}</p>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead>
+        <tr>
+          <th style="padding:6px 0;text-align:left;color:#64748b;border-bottom:2px solid #e2e8f0">Phòng</th>
+          <th style="padding:6px 0;text-align:right;color:#64748b;border-bottom:2px solid #e2e8f0">Số điện</th>
+        </tr>
+      </thead>
+      <tbody>${roomRows}</tbody>
+      <tfoot>
+        <tr>
+          <td style="padding:8px 0;font-weight:700">Tổng cộng</td>
+          <td style="padding:8px 0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${viNum.format(opts.unitsTotal)} số</td>
+        </tr>
+      </tfoot>
     </table>
     ${
       opts.notePhotoUrl
@@ -57,11 +76,8 @@ export async function sendMeterEmail(opts: MeterEmailOpts): Promise<void> {
               style="width:100%;max-width:480px;border-radius:12px;border:1px solid #e2e8f0"/></a>`
         : ""
     }
-    <p style="margin:24px 0">
-      <a href="${opts.dashboardUrl}" style="background:#16d27e;color:#06212a;text-decoration:none;
-         font-weight:700;padding:12px 20px;border-radius:12px;display:inline-block">Xem &amp; kiểm tra</a>
-    </p>
-    <p style="margin:0;color:#94a3b8;font-size:12px">Email tự động từ MH71 · Quản lý nhà trọ</p>
+    <p style="margin:20px 0 0"><a href="${opts.appUrl}" style="color:#0e8aa3;font-weight:600">Mở ứng dụng MH71</a></p>
+    <p style="margin:6px 0 0;color:#94a3b8;font-size:12px">Email tự động từ MH71 · Quản lý nhà trọ</p>
   </div>`;
 
   const res = await fetch(RESEND_ENDPOINT, {

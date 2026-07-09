@@ -35,9 +35,14 @@ export async function POST(request: Request) {
   // validate against the real số cũ for every bill in the month
   const { data: bills } = await sb
     .from("bills")
-    .select("id, reading_old")
+    .select("id, reading_old, room:rooms(code, sort_order)")
     .eq("month_id", body.monthId);
-  const billRows = (bills ?? []) as { id: string; reading_old: number }[];
+  type RoomEmbed = { code: string; sort_order: number };
+  const billRows = (bills ?? []) as unknown as {
+    id: string;
+    reading_old: number;
+    room: RoomEmbed | RoomEmbed[] | null;
+  }[];
   if (billRows.length === 0) {
     return NextResponse.json({ error: "no_bills" }, { status: 400 });
   }
@@ -102,10 +107,18 @@ export async function POST(request: Request) {
 
   // notify the owner AFTER responding — never block or fail the submit on email.
   const origin = new URL(request.url).origin;
-  const unitsTotal = billRows.reduce(
-    (sum, b) => sum + (Number(readingById.get(b.id)) - b.reading_old),
-    0,
-  );
+  const roomUnits = billRows
+    .map((b) => {
+      const rm = Array.isArray(b.room) ? b.room[0] : b.room;
+      return {
+        code: rm?.code ?? "?",
+        sort: rm?.sort_order ?? 0,
+        units: Number(readingById.get(b.id)) - b.reading_old,
+      };
+    })
+    .sort((a, b) => a.sort - b.sort);
+  const rooms = roomUnits.map(({ code, units }) => ({ code, units }));
+  const unitsTotal = roomUnits.reduce((sum, r) => sum + r.units, 0);
   after(async () => {
     try {
       let to = process.env.OWNER_NOTIFY_EMAIL || null;
@@ -117,10 +130,11 @@ export async function POST(request: Request) {
         to,
         kind: firstFill ? "filled" : "updated",
         monthLabel: month ? `Tháng ${month.month}/${month.year}` : "",
+        rooms,
         unitsTotal,
         filledAt,
         notePhotoUrl: body.notePhotoUrl ?? null,
-        dashboardUrl: `${origin}/thong-ke`,
+        appUrl: origin,
       });
     } catch (e) {
       console.error("[meter/submit] notify email failed:", e);

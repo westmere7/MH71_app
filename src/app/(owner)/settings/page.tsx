@@ -18,6 +18,7 @@ import {
   Lock,
   RotateCcw,
   Mail,
+  Send,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
@@ -82,63 +83,9 @@ export default function SettingsPage() {
         hint="Áp dụng cho toàn bộ ứng dụng."
       />
       <LockCard qc={qc} />
-      <NotifyCard qc={qc} />
       <DisplayCard qc={qc} />
       <QrCodeSettingsCard qc={qc} />
     </div>
-  );
-}
-
-/* ------------------------- email notification ----------------------- */
-function NotifyCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
-  const settings = useSettings().data;
-  const [email, setEmail] = React.useState("");
-  React.useEffect(() => {
-    setEmail(settings?.notify_email ?? "");
-  }, [settings?.notify_email]);
-
-  const save = useMutation({
-    mutationFn: () => updateSettings({ notify_email: email.trim() || null }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.settings });
-      toast.success("Đã lưu email nhận thông báo");
-    },
-    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0013."),
-  });
-
-  const changed = email.trim() !== (settings?.notify_email ?? "");
-
-  return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <Mail className="h-5 w-5 text-primary" />
-        <CardTitle>Thông báo email</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-muted">
-          Gửi email cho bạn mỗi khi quản lý ghi xong (hoặc cập nhật lại) số điện của tháng.
-          Để trống nếu không muốn nhận thông báo.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            placeholder="ban@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Button
-            onClick={() => save.mutate()}
-            disabled={!changed || save.isPending}
-            className="shrink-0"
-          >
-            {save.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mail className="h-5 w-5" />}
-            Lưu
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -505,6 +452,7 @@ function MeterExpenseCard({
   locked: boolean;
 }) {
   const billsQ = useBills(month.id);
+  const settings = useSettings().data;
   const loading = billsQ.isLoading;
   const stats = computeMonthStats(billsQ.data ?? [], month);
   const filled = stats.meterFilled;
@@ -519,6 +467,25 @@ function MeterExpenseCard({
     },
     onError: () => toast.error("Lưu thất bại. Cần chạy migration 0010."),
   });
+
+  // email notified when số điện is filled — universal (not tied to this month)
+  const [notifyEmail, setNotifyEmail] = React.useState("");
+  React.useEffect(() => {
+    setNotifyEmail(settings?.notify_email ?? "");
+  }, [settings?.notify_email]);
+  const saveNotify = useMutation({
+    mutationFn: () => updateSettings({ notify_email: notifyEmail.trim() || null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success("Đã lưu email nhận thông báo");
+    },
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0013."),
+  });
+  const notifyChanged = notifyEmail.trim() !== (settings?.notify_email ?? "");
+
+  // full URL of the meter page, resolved on the client (for display + copy)
+  const [origin, setOrigin] = React.useState("");
+  React.useEffect(() => setOrigin(window.location.origin), []);
 
   function copyMeterLink() {
     const url = `${window.location.origin}/dien`;
@@ -538,6 +505,39 @@ function MeterExpenseCard({
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {/* SEND-TO-MANAGER — the primary action: big, obvious, one-tap copy */}
+        <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4">
+          <div className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" />
+            <span className="text-base font-bold">Gửi cho quản lý ghi số điện</span>
+          </div>
+          <p className="text-sm text-muted">
+            Gửi đường link và mật khẩu bên dưới cho quản lý để họ nhập số điện mỗi tháng.
+          </p>
+          <div className="flex flex-col gap-1.5 rounded-xl bg-surface p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted">Đường link</span>
+              <span className="truncate font-semibold">{origin}/dien</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-1.5">
+              <span className="text-muted">Mật khẩu</span>
+              <span className="text-base font-extrabold tracking-wide text-primary">mh71</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button size="lg" onClick={copyMeterLink} className="flex-1">
+              <Copy className="h-5 w-5" />
+              Copy link + mật khẩu
+            </Button>
+            <a href="/dien" target="_blank" rel="noopener noreferrer">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                <ExternalLink className="h-5 w-5" />
+                Mở thử
+              </Button>
+            </a>
+          </div>
+        </div>
+
         {/* meter status + note photo, one tidy block */}
         <div className="flex flex-col gap-3 rounded-xl bg-surface-2 p-4">
           <div className="flex items-center justify-between gap-3">
@@ -607,27 +607,30 @@ function MeterExpenseCard({
           </p>
         </div>
 
-        {/* link to meter page */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2 p-4">
-          <div className="text-sm">
-            <div className="font-semibold">Trang ghi điện cho quản lý</div>
-            <div className="text-muted">
-              Mật khẩu: <span className="font-bold text-foreground">mh71</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a href="/dien" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="h-4 w-4" />
-                Mở trang
-              </Button>
-            </a>
-            <Button variant="outline" size="sm" onClick={copyMeterLink}>
-              <Copy className="h-4 w-4" />
-              Copy link
-            </Button>
-          </div>
+        {/* email notification when the manager fills số điện (universal setting) */}
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <Label htmlFor="notify-email" className="flex items-center gap-1.5">
+            <Mail className="h-4 w-4 text-muted" />
+            Email nhận thông báo
+          </Label>
+          <Input
+            id="notify-email"
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            value={notifyEmail}
+            onChange={(e) => setNotifyEmail(e.target.value)}
+            onBlur={() => {
+              if (notifyChanged) saveNotify.mutate();
+            }}
+            placeholder="ban@email.com"
+          />
+          <p className="text-sm text-muted">
+            Gửi email cho bạn mỗi khi quản lý ghi xong (hoặc cập nhật lại) số điện. Để trống nếu
+            không muốn nhận thông báo.
+          </p>
         </div>
+
       </CardContent>
     </Card>
   );
