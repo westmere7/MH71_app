@@ -11,12 +11,14 @@ import { BottomNav } from "./bottom-nav";
 import { MonthSwitcher } from "./month-switcher";
 import { ThemeToggle } from "./theme-toggle";
 import { UiScaleApplier } from "./ui-scale-applier";
+import { UpdateWatcher } from "./update-watcher";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const account = useAccount();
   return (
     <MonthProvider>
       <UiScaleApplier />
+      <UpdateWatcher />
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
