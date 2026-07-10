@@ -33,16 +33,16 @@ function toDate(d: string | Date): Date {
   return typeof d === "string" ? parseISO(d) : d;
 }
 
-/** dd.MM.yyyy */
+/** dd/MM/yyyy */
 export function formatDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
-  return format(toDate(d), "dd.MM.yyyy", { locale: vi });
+  return format(toDate(d), "dd/MM/yyyy", { locale: vi });
 }
 
-/** dd.MM • HH:mm */
+/** dd/MM/yyyy • HH:mm */
 export function formatDateTime(d: string | Date | null | undefined): string {
   if (!d) return "—";
-  return format(toDate(d), "dd.MM • HH:mm", { locale: vi });
+  return format(toDate(d), "dd/MM/yyyy • HH:mm", { locale: vi });
 }
 
 /** longer, easier-to-read: "HH:mm • dd/MM/yyyy" */
@@ -68,7 +68,7 @@ export function periodLabel(
   end: string | null | undefined,
 ): string {
   if (!start || !end) return "";
-  return `${format(toDate(start), "dd.MM")} → ${format(toDate(end), "dd.MM")}`;
+  return `${format(toDate(start), "dd/MM/yyyy")} → ${format(toDate(end), "dd/MM/yyyy")}`;
 }
 
 /** "đã ở 3 tháng" / "đã ở 1 năm 2 tháng" — null when no move-in date */
