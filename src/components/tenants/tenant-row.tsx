@@ -685,6 +685,7 @@ export function TenantRow({
         billVacant={vacant}
         billName={bill?.tenant_name ?? null}
         billPhone={bill?.tenant_phone ?? null}
+        billRoomFee={bill?.room_fee ?? null}
       />
       {bill && (
         <PaymentDialog

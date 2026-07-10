@@ -178,6 +178,16 @@ export async function updateRoomRent(roomId: string, defaultRent: number, billId
   }
 }
 
+/** Set ONLY this month's base room price (the per-month master = the bill). Does
+ *  not touch rooms.default_rent, so it never diverges from / clobbers via the
+ *  global default. Next month inherits it because createNextMonth mirrors the
+ *  previous bill's room_fee forward. */
+export async function setBillRoomFee(billId: string, roomFee: number) {
+  const sb = getSupabaseBrowser();
+  const { error } = await sb.from("bills").update({ room_fee: roomFee }).eq("id", billId);
+  if (error) throw error;
+}
+
 export interface PricingRoom {
   id: string;
   default_rent: number;

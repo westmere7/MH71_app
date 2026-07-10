@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Coins, Loader2, Save, Undo2, Lock, ListChecks, ChevronDown } from "lucide-react";
-import { useRooms, useSettings, qk } from "@/lib/queries";
+import { useRooms, useSettings, useBills, qk } from "@/lib/queries";
 import { useMonthCtx } from "@/components/month-provider";
 import { saveMonthPricing, updateMonthMeta, type PricingRoom } from "@/lib/mutations";
 import { DEFAULT_TOTAL_COST } from "@/lib/constants";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { monthLabel, formatVND } from "@/lib/format";
-import type { MonthRow, Room, Settings } from "@/lib/supabase/types";
+import type { Bill, MonthRow, Room, Settings } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -27,10 +27,16 @@ interface Draft {
   ratePer: Record<string, number>;
 }
 
-function seed(rooms: Room[], s: Settings, month: MonthRow): Draft {
+function seed(rooms: Room[], s: Settings, month: MonthRow, bills: Bill[]): Draft {
+  // per-month base price = this month's bill room_fee (the master); fall back to
+  // the room's global default only for vacant/new rooms. Seeding from the bill
+  // means saving the table re-applies the SAME per-month prices (no clobber).
+  const feeByRoom = new Map(
+    bills.filter((b) => b.payment_status !== "vacant").map((b) => [b.room_id, b.room_fee]),
+  );
   return {
     totalCost: month.other_fees ?? 0,
-    base: Object.fromEntries(rooms.map((r) => [r.id, r.default_rent])),
+    base: Object.fromEntries(rooms.map((r) => [r.id, feeByRoom.get(r.id) ?? r.default_rent])),
     uniformTrash: rooms.every((r) => r.default_trash == null),
     trashAll: s.trash_fee,
     trashPer: Object.fromEntries(rooms.map((r) => [r.id, r.default_trash ?? s.trash_fee])),
@@ -70,7 +76,9 @@ export function PricingCard() {
   const roomsQ = useRooms();
   const settingsQ = useSettings();
   const { selectedMonth, selectedLocked } = useMonthCtx();
+  const billsQ = useBills(selectedMonth?.id ?? null);
   const rooms = React.useMemo(() => roomsQ.data ?? [], [roomsQ.data]);
+  const bills = React.useMemo(() => billsQ.data ?? [], [billsQ.data]);
   const settings = settingsQ.data;
 
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -80,13 +88,13 @@ export function PricingCard() {
 
   React.useEffect(() => {
     if (rooms.length && settings && selectedMonth) {
-      const s = seed(rooms, settings, selectedMonth);
+      const s = seed(rooms, settings, selectedMonth, bills);
       setOriginal(s);
       // pre-fill the default cost when this month has none set yet (shows as a
       // pending change vs the saved 0, so it's saved on confirm)
       setDraft(s.totalCost === 0 ? { ...s, totalCost: DEFAULT_TOTAL_COST } : s);
     }
-  }, [rooms, settings, selectedMonth]);
+  }, [rooms, settings, selectedMonth, bills]);
 
   const changes = draft && original ? diff(original, draft, rooms) : [];
 
@@ -114,7 +122,8 @@ export function PricingCard() {
   });
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d!, ...patch }));
-  const reset = () => settings && selectedMonth && setDraft(seed(rooms, settings, selectedMonth));
+  const reset = () =>
+    settings && selectedMonth && setDraft(seed(rooms, settings, selectedMonth, bills));
 
   return (
     <CollapsibleCard title="Thiết lập giá" icon={Coins} contentClassName="flex flex-col gap-5">

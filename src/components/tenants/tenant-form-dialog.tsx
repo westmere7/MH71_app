@@ -16,14 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
 import {
   upsertTenant,
-  updateRoomRent,
+  setBillRoomFee,
   reactivateBill,
   updateBillTenant,
   type TenantInput,
 } from "@/lib/mutations";
 import { uploadImage, deleteImage } from "@/lib/upload";
 import { qk, useSettings } from "@/lib/queries";
-import { formatVND } from "@/lib/format";
 import type { Tenant } from "@/lib/supabase/types";
 import { toast } from "sonner";
 
@@ -38,6 +37,7 @@ export function TenantFormDialog({
   billVacant,
   billName,
   billPhone,
+  billRoomFee,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -49,6 +49,7 @@ export function TenantFormDialog({
   billVacant?: boolean;
   billName?: string | null; // this month's recorded name (preferred for prefill)
   billPhone?: string | null; // this month's recorded phone (preferred for prefill)
+  billRoomFee?: number | null; // this month's base room price (the per-month master)
 }) {
   const qc = useQueryClient();
   const trashFee = useSettings().data?.trash_fee ?? 50000;
@@ -172,8 +173,9 @@ export function TenantFormDialog({
     setPhotoUrl(tenant?.photo_url ?? null);
     setCameraAccess(tenant?.camera_access ?? false);
     setDocuments(tenant?.documents ?? []);
-    setBasePrice(defaultRent);
-  }, [open, tenant, defaultRent, billName, billPhone]);
+    // the base price is per-month: prefer this month's bill room_fee
+    setBasePrice(billRoomFee ?? defaultRent);
+  }, [open, tenant, defaultRent, billName, billPhone, billRoomFee]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -190,18 +192,17 @@ export function TenantFormDialog({
         documents: documents,
       };
       const saved = await upsertTenant(input);
-      // base price is the same field as in "Thiết lập giá" (rooms.default_rent).
       const reactivating = !tenant && !!billVacant && !!billId;
-      if (basePrice !== defaultRent) {
-        // sync the bill's room_fee too, unless we're about to reactivate it below
-        await updateRoomRent(roomId, basePrice, reactivating ? undefined : billId);
-      }
+      const seededRent = billRoomFee ?? defaultRent;
       // adding a tenant to an empty room turns the bill back on (unpaid + fees)
       if (reactivating && saved) {
+        // reactivateBill writes basePrice onto THIS month's bill (per-month master)
         await reactivateBill(billId!, basePrice, trashFee, saved.id, input.name, input.phone);
       } else if (billId && saved) {
-        // editing an existing tenant: snapshot the name + phone onto THIS month's
-        // bill only — past/future months keep their own record
+        // base price is per-month: write it back to THIS month's bill only — never
+        // the global rooms.default_rent (which is what caused the pricing clobber).
+        if (basePrice !== seededRent) await setBillRoomFee(billId, basePrice);
+        // snapshot the name + phone onto THIS month's bill only
         await updateBillTenant(billId, saved.id, input.name, input.phone);
       }
     },
@@ -299,7 +300,7 @@ export function TenantFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="t-base">Tiền phòng / tháng (giá cơ bản)</Label>
+            <Label htmlFor="t-base">Tiền phòng / tháng</Label>
             <Input
               id="t-base"
               type="number"
@@ -308,7 +309,7 @@ export function TenantFormDialog({
               onChange={(e) => setBasePrice(Number(e.target.value))}
             />
             <p className="text-xs text-muted">
-              Hiện tại: {formatVND(defaultRent)}. Sửa ở đây hoặc trong “Thiết lập giá” đều như nhau.
+              Giá phòng của riêng tháng này. Tháng sau sẽ tự kế thừa.
             </p>
           </div>
 
