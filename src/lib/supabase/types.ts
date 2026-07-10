@@ -21,7 +21,7 @@ export interface Settings {
   lock_past_months: boolean; // lock every month except the newest (migration 0009)
   updated_at: string;
   qr_code_url?: string | null;
-  notify_email?: string | null; // where to email when số điện is filled (migration 0013)
+  notify_email?: string | null; // where to email when số điện is filled (migration 0017)
 }
 
 export interface Room {
@@ -65,7 +65,7 @@ export interface MonthRow {
   evn_bill: number; // actual EVN electricity bill the owner pays (migration 0010)
   meter_note_photo_url: string | null;
   meter_filled_at: string | null; // khi quản lý bấm "Hoàn tất ghi điện"
-  meter_notified_at: string | null; // when the owner was first emailed (migration 0013)
+  meter_notified_at: string | null; // when the owner was first emailed (migration 0017)
   created_at: string;
 }
 
@@ -101,7 +101,7 @@ export interface PaymentLog {
   changed_by: string | null;
 }
 
-/** One frozen per-room row inside a backup snapshot (migration 0014). */
+/** One frozen per-room row inside a backup snapshot (migration 0018). */
 export interface BackupRoom {
   code: string;
   tenant_name: string | null;
@@ -127,6 +127,19 @@ export interface BackupRow {
   units_total: number;
   total_billed: number;
   data: BackupRoom[];
+}
+
+export type AuditOp = "INSERT" | "UPDATE" | "DELETE";
+
+export interface AuditRow {
+  id: number;
+  at: string;
+  table_name: string;
+  op: AuditOp;
+  row_pk: string | null;
+  actor: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
 }
 
 // Minimal Database shape for supabase-js generics. The `Relationships` and

@@ -3,7 +3,16 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSupabaseBrowser } from "./supabase/client";
-import type { Bill, MonthRow, Room, Settings, Tenant, PaymentLog, BackupRow } from "./supabase/types";
+import type {
+  Bill,
+  MonthRow,
+  Room,
+  Settings,
+  Tenant,
+  PaymentLog,
+  BackupRow,
+  AuditRow,
+} from "./supabase/types";
 
 export const qk = {
   settings: ["settings"] as const,
@@ -13,6 +22,7 @@ export const qk = {
   bills: (monthId: string | null) => ["bills", monthId] as const,
   logs: (billId: string) => ["logs", billId] as const,
   backups: (monthId: string | null) => ["backups", monthId] as const,
+  audit: (limit: number) => ["audit", limit] as const,
 };
 
 export function useSettings() {
@@ -55,10 +65,34 @@ export function useBackups(monthId: string | null) {
         .eq("month_id", monthId as string)
         .order("created_at", { ascending: false });
       if (error) {
-        if (/backups/i.test(error.message ?? "")) return []; // migration 0014 not applied yet
+        if (/backups/i.test(error.message ?? "")) return []; // migration 0018 not applied yet
         throw error;
       }
       return (data ?? []) as BackupRow[];
+    },
+  });
+}
+
+/** Recent audit-log entries, newest first. Only runs when `enabled` (the log
+ *  card is open), so it never adds load to normal browsing. */
+export function useAuditLog(limit: number, enabled: boolean, refetchMs?: number) {
+  return useQuery({
+    queryKey: qk.audit(limit),
+    enabled,
+    refetchInterval: refetchMs,
+    refetchOnWindowFocus: !!refetchMs,
+    queryFn: async (): Promise<AuditRow[]> => {
+      const sb = getSupabaseBrowser();
+      const { data, error } = await sb
+        .from("audit_log")
+        .select("*")
+        .order("at", { ascending: false })
+        .limit(limit);
+      if (error) {
+        if (/audit_log/i.test(error.message ?? "")) return []; // migration 0015 not applied yet
+        throw error;
+      }
+      return (data ?? []) as AuditRow[];
     },
   });
 }

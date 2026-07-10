@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PricingCard } from "@/components/settings/pricing-card";
+import { AuditLogCard } from "@/components/settings/audit-log-card";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,7 @@ export default function SettingsPage() {
       <LockCard qc={qc} />
       <DisplayCard qc={qc} />
       <QrCodeSettingsCard qc={qc} />
+      <AuditLogCard />
     </div>
   );
 }
@@ -239,7 +241,7 @@ function BackupSection({
       qc.invalidateQueries({ queryKey: qk.backups(month.id) });
       toast.success("Đã tạo bản sao lưu");
     },
-    onError: () => toast.error("Không tạo được bản sao lưu. Cần chạy migration 0014."),
+    onError: () => toast.error("Không tạo được bản sao lưu. Cần chạy migration 0018."),
   });
   const del = useMutation({
     mutationFn: (id: string) => deleteBackup(id),
@@ -517,7 +519,7 @@ function MeterExpenseCard({
       qc.invalidateQueries({ queryKey: qk.settings });
       toast.success("Đã lưu email nhận thông báo");
     },
-    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0013."),
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0017."),
   });
   const notifyChanged = notifyEmail.trim() !== (settings?.notify_email ?? "");
 

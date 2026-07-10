@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
   // finalize the month: note photo + completion + timestamp. On the first fill,
   // stamp meter_notified_at so retries/redeploys never re-send the first email.
-  // Gracefully fall back if migration 0006/0013 columns aren't applied yet.
+  // Gracefully fall back if migration 0006/0017 columns aren't applied yet.
   const finalize: Record<string, unknown> = {
     meter_note_photo_url: body.notePhotoUrl,
     meter_status: "xong",
