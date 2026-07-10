@@ -15,13 +15,12 @@ import {
   Clock,
   ALargeSmall,
   Lock,
-  RotateCcw,
   Mail,
   Send,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings } from "@/lib/queries";
-import { createNextMonth, deleteMonth, resetMonth, updateSettings, updateMonthMeta } from "@/lib/mutations";
+import { createNextMonth, deleteMonth, updateSettings, updateMonthMeta } from "@/lib/mutations";
 import { uploadImage, deleteImage } from "@/lib/upload";
 import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
@@ -193,13 +192,10 @@ function AddRemoveMonthCard({
                 {monthLabel(month.year, month.month)} đã qua nên đã khoá — không thể xoá.
               </p>
             ) : isCurrentMonth(month) ? (
-              <div className="flex flex-col gap-2">
-                <p className="flex items-center gap-2 text-sm text-muted">
-                  <Lock className="h-4 w-4 shrink-0" />
-                  {monthLabel(month.year, month.month)} là tháng hiện tại — không thể xoá.
-                </p>
-                <ResetMonthButton qc={qc} month={month} />
-              </div>
+              <p className="flex items-center gap-2 text-sm text-muted">
+                <Lock className="h-4 w-4 shrink-0" />
+                {monthLabel(month.year, month.month)} là tháng hiện tại — không thể xoá.
+              </p>
             ) : (
               <DeleteMonthButton qc={qc} month={month} />
             )}
@@ -207,64 +203,6 @@ function AddRemoveMonthCard({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function ResetMonthButton({
-  qc,
-  month,
-}: {
-  qc: ReturnType<typeof useQueryClient>;
-  month: MonthRow;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const reset = useMutation({
-    mutationFn: () => resetMonth(month.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.months });
-      qc.invalidateQueries({ queryKey: ["bills"] });
-      setOpen(false);
-      toast.success(`Đã thiết lập lại ${monthLabel(month.year, month.month)}`);
-    },
-    onError: () => toast.error("Không thiết lập lại được tháng."),
-  });
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        onClick={() => setOpen(true)}
-        className="self-start border-warning/40 text-warning hover:bg-warning-surface/30"
-      >
-        <RotateCcw className="h-5 w-5" />
-        Thiết lập lại {monthLabel(month.year, month.month)}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Thiết lập lại {monthLabel(month.year, month.month)}?</DialogTitle>
-            <DialogDescription>
-              Hành động này sẽ xoá toàn bộ dữ liệu đang ghi (số điện mới, trạng thái thanh toán, ảnh ghi chú, tiền điện EVN) của tháng hiện tại và <b>tạo lại từ đầu dựa trên số liệu cuối tháng trước</b>.
-              <br /><br />
-              Thông tin người thuê hiện tại sẽ được cập nhật. Dữ liệu đã nhập của tháng này sẽ bị mất <b>vĩnh viễn và KHÔNG THỂ khôi phục</b>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Huỷ
-            </Button>
-            <Button onClick={() => reset.mutate()} disabled={reset.isPending}>
-              {reset.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-5 w-5" />
-              )}
-              Xác nhận thiết lập lại
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
