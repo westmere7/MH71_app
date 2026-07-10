@@ -65,7 +65,7 @@ export default function OverviewPage() {
   const [openRoomId, setOpenRoomId] = React.useState<string | null>(null);
 
   // optional columns the user can hide (persisted locally)
-  const [cols, setCols] = React.useState({ phone: true, units: true, trash: true });
+  const [cols, setCols] = React.useState({ phone: true, units: true, rate: false, trash: true });
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(OVERVIEW_COLS_KEY);
@@ -193,6 +193,9 @@ export default function OverviewPage() {
         <ColToggle on={cols.units} onClick={() => toggleCol("units")}>
           Số điện
         </ColToggle>
+        <ColToggle on={cols.rate} onClick={() => toggleCol("rate")}>
+          Giá điện
+        </ColToggle>
         <ColToggle on={cols.trash} onClick={() => toggleCol("trash")}>
           Tiền rác
         </ColToggle>
@@ -206,6 +209,7 @@ export default function OverviewPage() {
               <th className={cn(th, nameLeft, "sticky z-30 bg-surface-2 text-left")}>Người thuê</th>
               {cols.phone && <th className={cn(th, "text-left")}>SĐT</th>}
               {cols.units && <th className={cn(th, "text-right")}>Số điện</th>}
+              {cols.rate && <th className={cn(th, "text-right")}>Giá điện</th>}
               <th className={cn(th, "text-right")}>Tiền điện</th>
               <th className={cn(th, "text-right")}>Tiền phòng</th>
               {cols.trash && <th className={cn(th, "text-right")}>Tiền rác</th>}
@@ -245,6 +249,7 @@ export default function OverviewPage() {
                   </td>
                   {cols.phone && <td className={cn(txt, "text-muted")}>{phone}</td>}
                   {cols.units && <td className={num}>{recorded ? formatNumber(b!.units) : "—"}</td>}
+                  {cols.rate && <td className={num}>{b ? formatVND(b.electricity_rate) : "—"}</td>}
                   <td className={num}>{recorded ? formatVND(b!.electricity_amount) : "—"}</td>
                   <td className={num}>{b ? formatVND(b.room_fee) : "—"}</td>
                   {cols.trash && <td className={num}>{b ? formatVND(b.trash_fee) : "—"}</td>}
@@ -263,6 +268,7 @@ export default function OverviewPage() {
                 Tổng cộng ({rooms.length})
               </td>
               {cols.units && <td className={num}>{formatNumber(totals.units)}</td>}
+              {cols.rate && <td className={num} />}
               <td className={num}>{formatVND(totals.elec)}</td>
               <td className={num}>{formatVND(totals.room)}</td>
               {cols.trash && <td className={num}>{formatVND(totals.trash)}</td>}
