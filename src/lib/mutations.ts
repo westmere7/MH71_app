@@ -3,7 +3,15 @@
 import { addMonths, parseISO, formatISO } from "date-fns";
 import { getSupabaseBrowser } from "./supabase/client";
 import { DEFAULT_TOTAL_COST } from "./constants";
-import type { Bill, MonthRow, PaymentStatus, Settings, Tenant } from "./supabase/types";
+import type {
+  Bill,
+  MonthRow,
+  PaymentStatus,
+  Settings,
+  Tenant,
+  Room,
+  BackupRoom,
+} from "./supabase/types";
 
 function unwrap<T>({ data, error }: { data: T; error: unknown }): T {
   if (error) throw error;
@@ -373,4 +381,53 @@ export async function createNextMonth(): Promise<MonthRow> {
   }
 
   return newMonth;
+}
+
+// ---- Backups (manual snapshots) ----
+/** Freeze a month's current bill set into a timestamped backup row. */
+export async function createBackup(month: MonthRow, bills: Bill[], rooms: Room[]) {
+  const sb = getSupabaseBrowser();
+  const roomById = new Map(rooms.map((r) => [r.id, r]));
+  const sortOf = (roomId: string) => roomById.get(roomId)?.sort_order ?? 0;
+  const rows: BackupRoom[] = [...bills]
+    .sort((a, b) => sortOf(a.room_id) - sortOf(b.room_id))
+    .map((b) => ({
+      code: roomById.get(b.room_id)?.code ?? "?",
+      tenant_name: b.tenant_name,
+      tenant_phone: b.tenant_phone,
+      reading_old: b.reading_old,
+      reading_new: b.reading_new,
+      units: b.units,
+      electricity_rate: b.electricity_rate,
+      electricity_amount: b.electricity_amount,
+      room_fee: b.room_fee,
+      trash_fee: b.trash_fee,
+      total: b.total,
+      payment_status: b.payment_status,
+      paid_at: b.paid_at,
+    }));
+
+  const unitsTotal = rows.reduce((s, r) => s + (r.units || 0), 0);
+  const totalBilled = rows.reduce((s, r) => s + (r.total || 0), 0);
+
+  return unwrap(
+    await sb
+      .from("backups")
+      .insert({
+        month_id: month.id,
+        year: month.year,
+        month: month.month,
+        units_total: unitsTotal,
+        total_billed: totalBilled,
+        data: rows,
+      })
+      .select()
+      .single(),
+  );
+}
+
+export async function deleteBackup(id: string) {
+  const sb = getSupabaseBrowser();
+  const { error } = await sb.from("backups").delete().eq("id", id);
+  if (error) throw error;
 }

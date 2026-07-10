@@ -7,7 +7,7 @@ import { useRooms, useSettings, qk } from "@/lib/queries";
 import { useMonthCtx } from "@/components/month-provider";
 import { saveMonthPricing, updateMonthMeta, type PricingRoom } from "@/lib/mutations";
 import { DEFAULT_TOTAL_COST } from "@/lib/constants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -117,17 +117,7 @@ export function PricingCard() {
   const reset = () => settings && selectedMonth && setDraft(seed(rooms, settings, selectedMonth));
 
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <Coins className="h-5 w-5 text-primary" />
-        <CardTitle>Thiết lập giá</CardTitle>
-        {selectedMonth && (
-          <span className="ml-auto text-sm font-semibold text-muted">
-            {monthLabel(selectedMonth.year, selectedMonth.month)}
-          </span>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
+    <CollapsibleCard title="Thiết lập giá" icon={Coins} contentClassName="flex flex-col gap-5">
         {selectedLocked && (
           <div className="flex items-center gap-2 rounded-xl border border-warning/40 bg-warning-surface px-4 py-3 text-sm font-semibold text-warning">
             <Lock className="h-5 w-5 shrink-0" />
@@ -256,7 +246,6 @@ export function PricingCard() {
             </div>
           </div>
         )}
-      </CardContent>
 
       {/* review changes before saving — guards against accidental edits */}
       <Dialog open={reviewOpen} onOpenChange={(o) => !o && setReviewOpen(false)}>
@@ -296,7 +285,7 @@ export function PricingCard() {
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </CollapsibleCard>
   );
 }
 

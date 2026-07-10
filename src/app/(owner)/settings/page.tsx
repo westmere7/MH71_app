@@ -17,14 +17,25 @@ import {
   Lock,
   Mail,
   Send,
+  Archive,
+  Download,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
-import { qk, useBills, useSettings } from "@/lib/queries";
-import { createNextMonth, deleteMonth, updateSettings, updateMonthMeta } from "@/lib/mutations";
+import { qk, useBills, useSettings, useRooms, useBackups } from "@/lib/queries";
+import {
+  createNextMonth,
+  deleteMonth,
+  updateSettings,
+  updateMonthMeta,
+  createBackup,
+  deleteBackup,
+} from "@/lib/mutations";
+import { downloadBackupCsv } from "@/lib/backup-csv";
 import { uploadImage, deleteImage } from "@/lib/upload";
 import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +47,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { monthLabel, formatNumber, formatDateTime } from "@/lib/format";
+import { monthLabel, formatNumber, formatDateTime, formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { MonthRow } from "@/lib/supabase/types";
 import { toast } from "sonner";
@@ -183,6 +194,8 @@ function AddRemoveMonthCard({
           Tạo {nextLabel}
         </Button>
 
+        {month && <BackupSection qc={qc} month={month} />}
+
         {month && (
           <div className="mt-1 flex flex-col gap-2 border-t border-border pt-4">
             <span className="text-sm font-semibold text-muted">Khu vực nguy hiểm</span>
@@ -203,6 +216,104 @@ function AddRemoveMonthCard({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/* ------------------------- backups (snapshots) ---------------------- */
+function BackupSection({
+  qc,
+  month,
+}: {
+  qc: ReturnType<typeof useQueryClient>;
+  month: MonthRow;
+}) {
+  const bills = useBills(month.id).data ?? [];
+  const rooms = useRooms().data ?? [];
+  const backups = useBackups(month.id).data ?? [];
+  const stats = computeMonthStats(bills, month);
+  const canBackup = stats.meterFilled; // only after số điện has been submitted
+
+  const create = useMutation({
+    mutationFn: () => createBackup(month, bills, rooms),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.backups(month.id) });
+      toast.success("Đã tạo bản sao lưu");
+    },
+    onError: () => toast.error("Không tạo được bản sao lưu. Cần chạy migration 0014."),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => deleteBackup(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.backups(month.id) });
+      toast.success("Đã xoá bản sao lưu");
+    },
+    onError: () => toast.error("Không xoá được."),
+  });
+
+  return (
+    <div className="mt-1 flex flex-col gap-3 border-t border-border pt-4">
+      <div className="flex flex-col gap-1">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <Archive className="h-4 w-4 text-primary" />
+          Sao lưu {monthLabel(month.year, month.month)}
+        </span>
+        <p className="text-sm text-muted">
+          Đóng băng toàn bộ số liệu hiện tại thành một bản lưu kèm thời gian. Có thể tải từng bản
+          về file CSV.
+        </p>
+      </div>
+
+      <Button
+        variant="outline"
+        onClick={() => create.mutate()}
+        disabled={!canBackup || create.isPending}
+        className="self-start"
+      >
+        {create.isPending ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <Archive className="h-5 w-5" />
+        )}
+        Tạo bản sao lưu
+      </Button>
+      {!canBackup && (
+        <p className="flex items-center gap-1.5 text-xs text-muted">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          Cần ghi xong số điện trước khi sao lưu.
+        </p>
+      )}
+
+      {backups.length > 0 && (
+        <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+          {backups.map((b) => (
+            <li key={b.id} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
+              <div className="min-w-0">
+                <div className="font-semibold">{formatDateTime(b.created_at)}</div>
+                <div className="text-xs text-muted">
+                  {formatNumber(b.units_total)} số • {formatVND(b.total_billed)}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button size="sm" variant="outline" onClick={() => downloadBackupCsv(b)}>
+                  <Download className="h-4 w-4" />
+                  CSV
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Xoá bản sao lưu này?")) del.mutate(b.id);
+                  }}
+                  aria-label="Xoá bản sao lưu"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-danger-surface hover:text-danger"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -278,12 +389,7 @@ function LockCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   });
 
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <Lock className="h-5 w-5 text-primary" />
-        <CardTitle>Khoá tháng đã qua</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <CollapsibleCard title="Khoá tháng đã qua" icon={Lock}>
         <label className="flex cursor-pointer items-start justify-between gap-4">
           <span className="flex flex-col gap-1">
             <span className="text-sm font-semibold">Khoá các tháng đã qua</span>
@@ -312,8 +418,7 @@ function LockCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             />
           </button>
         </label>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -337,12 +442,7 @@ function DisplayCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   });
 
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <ALargeSmall className="h-5 w-5 text-primary" />
-        <CardTitle>Hiển thị</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <CollapsibleCard title="Hiển thị" icon={ALargeSmall} contentClassName="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-semibold">Cỡ chữ &amp; giao diện</span>
           <p className="text-sm text-muted">
@@ -373,8 +473,7 @@ function DisplayCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -726,12 +825,7 @@ function QrCodeSettingsCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <Zap className="h-5 w-5 text-primary" />
-        <CardTitle>Hình QR chủ tài khoản</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <CollapsibleCard title="Hình QR chủ tài khoản" icon={Zap} contentClassName="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-semibold">Mã QR Thanh Toán</span>
           <p className="text-sm text-muted">
@@ -929,7 +1023,6 @@ function QrCodeSettingsCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }

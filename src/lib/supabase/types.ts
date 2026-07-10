@@ -101,6 +101,34 @@ export interface PaymentLog {
   changed_by: string | null;
 }
 
+/** One frozen per-room row inside a backup snapshot (migration 0014). */
+export interface BackupRoom {
+  code: string;
+  tenant_name: string | null;
+  tenant_phone: string | null;
+  reading_old: number;
+  reading_new: number | null;
+  units: number;
+  electricity_rate: number;
+  electricity_amount: number;
+  room_fee: number;
+  trash_fee: number;
+  total: number;
+  payment_status: PaymentStatus;
+  paid_at: string | null;
+}
+
+export interface BackupRow {
+  id: string;
+  created_at: string;
+  month_id: string | null;
+  year: number;
+  month: number;
+  units_total: number;
+  total_billed: number;
+  data: BackupRoom[];
+}
+
 // Minimal Database shape for supabase-js generics. The `Relationships` and
 // `CompositeTypes` keys are required by recent @supabase/supabase-js versions —
 // omitting them makes Insert/Update resolve to `never`.

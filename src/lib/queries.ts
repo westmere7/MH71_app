@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSupabaseBrowser } from "./supabase/client";
-import type { Bill, MonthRow, Room, Settings, Tenant, PaymentLog } from "./supabase/types";
+import type { Bill, MonthRow, Room, Settings, Tenant, PaymentLog, BackupRow } from "./supabase/types";
 
 export const qk = {
   settings: ["settings"] as const,
@@ -12,6 +12,7 @@ export const qk = {
   tenants: ["tenants"] as const,
   bills: (monthId: string | null) => ["bills", monthId] as const,
   logs: (billId: string) => ["logs", billId] as const,
+  backups: (monthId: string | null) => ["backups", monthId] as const,
 };
 
 export function useSettings() {
@@ -38,6 +39,26 @@ export function useMonths() {
         .order("month", { ascending: false });
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+export function useBackups(monthId: string | null) {
+  return useQuery({
+    queryKey: qk.backups(monthId),
+    enabled: !!monthId,
+    queryFn: async (): Promise<BackupRow[]> => {
+      const sb = getSupabaseBrowser();
+      const { data, error } = await sb
+        .from("backups")
+        .select("*")
+        .eq("month_id", monthId as string)
+        .order("created_at", { ascending: false });
+      if (error) {
+        if (/backups/i.test(error.message ?? "")) return []; // migration 0014 not applied yet
+        throw error;
+      }
+      return (data ?? []) as BackupRow[];
     },
   });
 }
