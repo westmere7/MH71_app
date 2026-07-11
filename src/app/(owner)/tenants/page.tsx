@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { useRooms, useCurrentTenants, useAllTenants, useBills } from "@/lib/queries";
 import { TenantRow } from "@/components/tenants/tenant-row";
+import { BulkPaymentCards } from "@/components/tenants/bulk-payment-cards";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,13 +127,16 @@ export default function TenantsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-extrabold tracking-tight">Phòng thuê</h1>
-        {selectedMonth && (
-          <span className="text-sm font-semibold text-muted">
-            Đã thu {paidCount}/{rooms.length} phòng
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {selectedMonth && (
+            <span className="text-sm font-semibold text-muted">
+              Đã thu {paidCount}/{rooms.length} phòng
+            </span>
+          )}
+          <BulkPaymentCards />
+        </div>
       </div>
 
       {/* search */}
