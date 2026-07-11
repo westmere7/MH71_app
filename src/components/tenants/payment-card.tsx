@@ -95,18 +95,41 @@ export function PaymentCardDialog({
     try {
       const { dataUrl, blob } = await renderPng();
       const file = new File([blob], filename, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `Thẻ thanh toán — ${room.code}` });
-      } else {
-        downloadDataUrl(dataUrl);
-        toast.info("Thiết bị không hỗ trợ chia sẻ. Đã tải ảnh xuống.");
+
+      // 1) Native share sheet (Zalo appears). Attempt whenever share() exists —
+      //    some Android browsers (e.g. Edge) support it but report canShare false.
+      if (typeof navigator !== "undefined" && navigator.share) {
+        const okFiles = !navigator.canShare || navigator.canShare({ files: [file] });
+        if (okFiles) {
+          try {
+            await navigator.share({ files: [file], title: `Thẻ thanh toán — ${room.code}` });
+            return;
+          } catch (e) {
+            if ((e as { name?: string })?.name === "AbortError") return; // user cancelled
+            // otherwise fall through to the fallbacks below
+          }
+        }
       }
+
+      // 2) Copy image to clipboard (works on Edge/Chrome Android) → paste into Zalo
+      if (typeof window !== "undefined" && "ClipboardItem" in window && navigator.clipboard?.write) {
+        try {
+          await navigator.clipboard.write([
+            new (window as any).ClipboardItem({ [blob.type]: blob }),
+          ]);
+          toast.success("Đã sao chép ảnh. Mở Zalo rồi dán để gửi.");
+          return;
+        } catch {
+          /* fall through to download */
+        }
+      }
+
+      // 3) Last resort: download
+      downloadDataUrl(dataUrl);
+      toast.info("Đã tải ảnh xuống — mở Zalo rồi đính kèm ảnh để gửi.");
     } catch (e) {
-      // user dismissing the share sheet throws AbortError — not an error
-      if ((e as { name?: string })?.name !== "AbortError") {
-        console.error(e);
-        toast.error("Không chia sẻ được, thử lại.");
-      }
+      console.error(e);
+      toast.error("Không chia sẻ được, thử lại.");
     } finally {
       setBusy(false);
     }
