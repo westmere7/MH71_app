@@ -478,9 +478,29 @@ export function TenantRow({
               )}
             </div>
 
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <div>{totalEl}</div>
-              <div className="flex justify-end">{statusEl}</div>
+            <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+              {bill && !vacant ? (
+                <button
+                  type="button"
+                  title="Xem thẻ thanh toán"
+                  onClick={(e) => {
+                    // desktop only: clicking the price opens the payment card
+                    if (typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches) {
+                      e.stopPropagation();
+                      setCardOpen(true);
+                    }
+                  }}
+                  className="cursor-default text-right transition-opacity sm:w-36 sm:cursor-pointer sm:hover:opacity-70"
+                >
+                  {totalEl}
+                </button>
+              ) : (
+                <div className="sm:w-36 sm:text-right">{totalEl}</div>
+              )}
+              {/* vertical divider — fixed widths on both sides keep it at the
+                  same x across every row, so the dividers line up as a column */}
+              <div className="hidden w-px self-stretch bg-border sm:block" />
+              <div className="flex justify-end sm:w-28 sm:justify-start">{statusEl}</div>
             </div>
             {!hideChevron && (
               <ChevronDown
