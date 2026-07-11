@@ -12,6 +12,14 @@ import { PaymentCardView } from "./payment-card-view";
 import { toast } from "sonner";
 import type { Bill, Room } from "@/lib/supabase/types";
 
+// Minimal File System Access API shapes (not in the TS DOM lib we target).
+type FSWritable = { write: (data: Blob) => Promise<void>; close: () => Promise<void> };
+type FSFileHandle = { createWritable: () => Promise<FSWritable> };
+type FileSystemDirectory = {
+  getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<FileSystemDirectory>;
+  getFileHandle: (name: string, opts?: { create?: boolean }) => Promise<FSFileHandle>;
+};
+
 function waitForImages(el: HTMLElement): Promise<void> {
   const imgs = Array.from(el.querySelectorAll("img"));
   return Promise.all(
@@ -53,12 +61,28 @@ export function BulkPaymentCards() {
     [bills, roomById],
   );
 
-  async function downloadZip() {
+  async function downloadAll() {
     if (!selectedMonth || busy) return;
     if (cards.length === 0) {
       toast.error("Không có thẻ để tải.");
       return;
     }
+    const folder = `Thang ${selectedMonth.month}.${selectedMonth.year}`;
+
+    // Option A: pick a folder FIRST — showDirectoryPicker needs the click's user
+    // activation, which the slow render below would otherwise consume.
+    const picker = (window as unknown as { showDirectoryPicker?: () => Promise<FileSystemDirectory> })
+      .showDirectoryPicker;
+    let dirHandle: FileSystemDirectory | null = null;
+    if (typeof picker === "function") {
+      try {
+        dirHandle = await picker();
+      } catch (e) {
+        if ((e as { name?: string })?.name === "AbortError") return; // user cancelled
+        console.warn("showDirectoryPicker unavailable, falling back to zip:", e);
+      }
+    }
+
     setBusy(true);
     setExporting(true);
     try {
@@ -68,25 +92,40 @@ export function BulkPaymentCards() {
       if (!container) throw new Error("render surface missing");
       await waitForImages(container);
 
-      const folder = `Thang ${selectedMonth.month}.${selectedMonth.year}`;
-      const zip = new JSZip();
       const nodes = Array.from(container.querySelectorAll<HTMLElement>("[data-card]"));
+      const files: { name: string; blob: Blob }[] = [];
       for (const node of nodes) {
         const code = node.getAttribute("data-card") || "phong";
         const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true });
-        zip.file(`${folder}/${code}.png`, dataUrl.split(",")[1], { base64: true });
+        files.push({ name: `${code}.png`, blob: await (await fetch(dataUrl)).blob() });
       }
-      const blob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${folder}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`Đã tải ${nodes.length} thẻ thanh toán`);
+
+      if (dirHandle) {
+        // Option A: write each PNG into a "Thang M.YYYY" subfolder — no zip
+        const sub = await dirHandle.getDirectoryHandle(folder, { create: true });
+        for (const f of files) {
+          const fh = await sub.getFileHandle(f.name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(f.blob);
+          await w.close();
+        }
+        toast.success(`Đã lưu ${files.length} thẻ vào thư mục “${folder}”`);
+      } else {
+        // Fallback: bundle into a single ZIP download
+        const zip = new JSZip();
+        for (const f of files) zip.file(`${folder}/${f.name}`, f.blob);
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${folder}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Đã tải ${files.length} thẻ thanh toán (zip)`);
+      }
     } catch (e) {
       console.error(e);
-      toast.error("Không tạo được file zip, thử lại.");
+      toast.error("Không tải được thẻ, thử lại.");
     } finally {
       setExporting(false);
       setBusy(false);
@@ -97,7 +136,7 @@ export function BulkPaymentCards() {
     <>
       <Button
         size="lg"
-        onClick={downloadZip}
+        onClick={downloadAll}
         disabled={!ready || busy}
         title={ready ? undefined : "Cần ghi xong số điện trước"}
         className="hidden sm:inline-flex"
