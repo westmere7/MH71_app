@@ -19,6 +19,7 @@ import {
   Send,
   Archive,
   Download,
+  ChevronDown,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings, useRooms, useBackups } from "@/lib/queries";
@@ -36,6 +37,7 @@ import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/u
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,7 +202,6 @@ function AddRemoveMonthCard({
 
         {month && (
           <div className="mt-1 flex flex-col gap-2 border-t border-border pt-4">
-            <span className="text-sm font-semibold text-muted">Khu vực nguy hiểm</span>
             {locked ? (
               <p className="flex items-center gap-2 text-sm text-muted">
                 <Lock className="h-4 w-4 shrink-0" />
@@ -252,69 +253,89 @@ function BackupSection({
     onError: () => toast.error("Không xoá được."),
   });
 
+  const [open, setOpen] = React.useState(false);
+
   return (
-    <div className="mt-1 flex flex-col gap-3 border-t border-border pt-4">
-      <div className="flex flex-col gap-1">
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          <Archive className="h-4 w-4 text-primary" />
+    <div className="mt-1 border-t border-border pt-4">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 text-left text-sm font-semibold"
+        >
+          <Archive className="h-4 w-4 shrink-0 text-primary" />
           Sao lưu {monthLabel(month.year, month.month)}
-        </span>
-        <p className="text-sm text-muted">
-          Đóng băng toàn bộ số liệu hiện tại thành một bản lưu kèm thời gian. Có thể tải từng bản
-          về file CSV.
-        </p>
-      </div>
+          <ChevronDown
+            className={cn(
+              "ml-auto h-5 w-5 shrink-0 text-muted transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+        <CollapsibleContent>
+          <div className="flex flex-col gap-3 pt-3">
+            <p className="text-sm text-muted">
+              Đóng băng toàn bộ số liệu hiện tại thành một bản lưu kèm thời gian. Có thể tải từng
+              bản về file CSV.
+            </p>
 
-      <Button
-        variant="outline"
-        onClick={() => create.mutate()}
-        disabled={!canBackup || create.isPending}
-        className="self-start"
-      >
-        {create.isPending ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
-        ) : (
-          <Archive className="h-5 w-5" />
-        )}
-        Tạo bản sao lưu
-      </Button>
-      {!canBackup && (
-        <p className="flex items-center gap-1.5 text-xs text-muted">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          Cần ghi xong số điện trước khi sao lưu.
-        </p>
-      )}
+            <Button
+              variant="outline"
+              onClick={() => create.mutate()}
+              disabled={!canBackup || create.isPending}
+              className="self-start"
+            >
+              {create.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Archive className="h-5 w-5" />
+              )}
+              Tạo bản sao lưu
+            </Button>
+            {!canBackup && (
+              <p className="flex items-center gap-1.5 text-xs text-muted">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                Cần ghi xong số điện trước khi sao lưu.
+              </p>
+            )}
 
-      {backups.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
-          {backups.map((b) => (
-            <li key={b.id} className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm">
-              <div className="min-w-0">
-                <div className="font-semibold">{formatDateTime(b.created_at)}</div>
-                <div className="text-xs text-muted">
-                  {formatNumber(b.units_total)} số • {formatVND(b.total_billed)}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="outline" onClick={() => downloadBackupCsv(b)}>
-                  <Download className="h-4 w-4" />
-                  CSV
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm("Xoá bản sao lưu này?")) del.mutate(b.id);
-                  }}
-                  aria-label="Xoá bản sao lưu"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-danger-surface hover:text-danger"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+            {backups.length > 0 && (
+              <ul className="flex flex-col divide-y divide-border rounded-xl border border-border">
+                {backups.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold">{formatDateTime(b.created_at)}</div>
+                      <div className="text-xs text-muted">
+                        {formatNumber(b.units_total)} số • {formatVND(b.total_billed)}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => downloadBackupCsv(b)}>
+                        <Download className="h-4 w-4" />
+                        CSV
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm("Xoá bản sao lưu này?")) del.mutate(b.id);
+                        }}
+                        aria-label="Xoá bản sao lưu"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-danger-surface hover:text-danger"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -637,17 +658,31 @@ function MeterExpenseCard({
         {/* EVN bill — the owner's actual electricity cost (manual, for profit) */}
         <div className="flex flex-col gap-2">
           <Label htmlFor="evn-bill">Tiền điện EVN phải trả (đ)</Label>
-          <Input
-            id="evn-bill"
-            inputMode="numeric"
-            disabled={locked}
-            value={evn ? formatNumber(evn) : ""}
-            onChange={(e) => setEvn(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
-            onBlur={() => {
-              if (!locked && evn !== month.evn_bill) saveEvn.mutate();
-            }}
-            placeholder="0"
-          />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              id="evn-bill"
+              inputMode="numeric"
+              disabled={locked}
+              value={evn ? formatNumber(evn) : ""}
+              onChange={(e) => setEvn(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !locked && evn !== month.evn_bill) saveEvn.mutate();
+              }}
+              placeholder="0"
+            />
+            <Button
+              onClick={() => saveEvn.mutate()}
+              disabled={locked || evn === month.evn_bill || saveEvn.isPending}
+              className="shrink-0"
+            >
+              {saveEvn.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5" />
+              )}
+              Lưu
+            </Button>
+          </div>
           <p className="text-sm text-muted">
             {locked
               ? "Tháng này đã khoá — không thể sửa."

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toPng } from "html-to-image";
-import { Download, Loader2, Send } from "lucide-react";
+import { Download, Loader2, Copy, Share2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatVND, formatNumber, monthLabel, periodLabel } from "@/lib/format";
@@ -29,20 +29,32 @@ export function PaymentCardDialog({
 }) {
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
   const settings = useSettings().data;
+
+  React.useEffect(() => setIsMobile(isMobileDevice()), []);
+
+  const filename = `MH71_${room.code}_T${month.month}_${month.year}.png`;
+
+  async function renderPng() {
+    const dataUrl = await toPng(cardRef.current!, { pixelRatio: 2, cacheBust: true });
+    const blob = await (await fetch(dataUrl)).blob();
+    return { dataUrl, blob };
+  }
+
+  function downloadDataUrl(dataUrl: string) {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+  }
 
   async function download() {
     if (!cardRef.current) return;
     setBusy(true);
     try {
-      const dataUrl = await toPng(cardRef.current, {
-        pixelRatio: 2,
-        cacheBust: true,
-      });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `MH71_${room.code}_T${month.month}_${month.year}.png`;
-      a.click();
+      const { dataUrl } = await renderPng();
+      downloadDataUrl(dataUrl);
       toast.success("Đã tải thẻ thanh toán");
     } catch {
       toast.error("Không tạo được ảnh, thử lại.");
@@ -51,52 +63,50 @@ export function PaymentCardDialog({
     }
   }
 
-  async function share() {
+  // DESKTOP: copy the card image to the clipboard → paste into Zalo
+  async function copyImage() {
     if (!cardRef.current) return;
     setBusy(true);
     try {
-      const dataUrl = await toPng(cardRef.current, {
-        pixelRatio: 2,
-        cacheBust: true,
-      });
-      
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const filename = `MH71_${room.code}_T${month.month}_${month.year}.png`;
-      const file = new File([blob], filename, { type: "image/png" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Thẻ thanh toán — ${room.code}`,
-          text: `Phiếu báo tiền phòng ${room.code} tháng ${month.month}/${month.year}`,
-        });
-        toast.success("Đã mở bảng chia sẻ thành công");
+      const { dataUrl, blob } = await renderPng();
+      const canCopy =
+        typeof window !== "undefined" && "ClipboardItem" in window && !!navigator.clipboard?.write;
+      if (canCopy) {
+        await navigator.clipboard.write([
+          new (window as any).ClipboardItem({ [blob.type]: blob }),
+        ]);
+        toast.success("Đã sao chép ảnh. Mở Zalo rồi dán (Ctrl/Cmd + V) để gửi.");
       } else {
-        // Fallback: Copy to clipboard!
-        if (typeof window !== "undefined" && (window as any).ClipboardItem) {
-          try {
-            await navigator.clipboard.write([
-              new (window as any).ClipboardItem({
-                [blob.type]: blob,
-              }),
-            ]);
-            toast.success("Đã sao chép ảnh vào bộ nhớ tạm. Hãy mở Zalo và nhấn Ctrl+V (Cmd+V) để dán gửi!");
-            return;
-          } catch (clipErr) {
-            console.error("Clipboard copy failed, falling back to download:", clipErr);
-          }
-        }
-        // Fallback 2: download
-        const a = document.createElement("a");
-        a.href = dataUrl;
-        a.download = filename;
-        a.click();
-        toast.info("Trình duyệt không hỗ trợ chia sẻ. Đã tự động tải ảnh.");
+        downloadDataUrl(dataUrl);
+        toast.info("Trình duyệt không hỗ trợ sao chép ảnh. Đã tải ảnh xuống.");
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error("Không thể thực hiện chia sẻ.");
+      toast.error("Không sao chép được ảnh, thử lại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // MOBILE: open the native share sheet (Zalo shows up) — works on Android & iOS
+  async function shareImage() {
+    if (!cardRef.current) return;
+    setBusy(true);
+    try {
+      const { dataUrl, blob } = await renderPng();
+      const file = new File([blob], filename, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Thẻ thanh toán — ${room.code}` });
+      } else {
+        downloadDataUrl(dataUrl);
+        toast.info("Thiết bị không hỗ trợ chia sẻ. Đã tải ảnh xuống.");
+      }
+    } catch (e) {
+      // user dismissing the share sheet throws AbortError — not an error
+      if ((e as { name?: string })?.name !== "AbortError") {
+        console.error(e);
+        toast.error("Không chia sẻ được, thử lại.");
+      }
     } finally {
       setBusy(false);
     }
@@ -182,9 +192,20 @@ export function PaymentCardDialog({
         </div>
 
         <div className="flex gap-2.5">
-          <Button onClick={share} disabled={busy} size="lg" className="flex-1">
-            {busy ? <Loader2 className="h-5 w-5 animate-spin mr-1.5" /> : <Send className="h-5 w-5 mr-1.5" />}
-            Chia sẻ
+          <Button
+            onClick={isMobile ? shareImage : copyImage}
+            disabled={busy}
+            size="lg"
+            className="flex-1"
+          >
+            {busy ? (
+              <Loader2 className="h-5 w-5 animate-spin mr-1.5" />
+            ) : isMobile ? (
+              <Share2 className="h-5 w-5 mr-1.5" />
+            ) : (
+              <Copy className="h-5 w-5 mr-1.5" />
+            )}
+            {isMobile ? "Chia sẻ" : "Sao chép ảnh"}
           </Button>
           <Button onClick={download} disabled={busy} size="lg" variant="outline" className="flex-1">
             {busy ? <Loader2 className="h-5 w-5 animate-spin mr-1.5" /> : <Download className="h-5 w-5 mr-1.5" />}
@@ -193,5 +214,20 @@ export function PaymentCardDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Phone/tablet → use the native share sheet; desktop → copy to clipboard. */
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPod|iPad/i.test(ua)) return true;
+  // iPadOS 13+ reports as "Macintosh" — detect it via touch support
+  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return true;
+  // generic touch-first fallback
+  return (
+    typeof window !== "undefined" &&
+    !!window.matchMedia?.("(pointer: coarse)").matches &&
+    navigator.maxTouchPoints > 0
   );
 }
