@@ -495,12 +495,17 @@ export function TenantRow({
                           setCardOpen(true);
                         }
                       }}
-                      className="cursor-default text-right transition-opacity sm:w-36 sm:cursor-pointer sm:hover:opacity-70"
+                      className={cn(
+                        "cursor-default text-right transition-opacity sm:w-36 sm:cursor-pointer sm:hover:opacity-70",
+                        open && "hidden sm:block"
+                      )}
                     >
                       {totalEl}
                     </button>
                   ) : (
-                    <div className="sm:w-36 sm:text-right">{totalEl}</div>
+                    <div className={cn("sm:w-36 sm:text-right", open && "hidden sm:block")}>
+                      {totalEl}
+                    </div>
                   )}
                   {/* vertical divider — fixed widths on both sides keep it at the
                       same x across every row, so the dividers line up as a column */}
