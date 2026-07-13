@@ -56,6 +56,7 @@ export function TenantRow({
   onOpenChange,
   dimmed,
   hideChevron,
+  hidePriceOnTop = false,
 }: {
   room: Room;
   bill: Bill | null;
@@ -67,6 +68,7 @@ export function TenantRow({
   onOpenChange: (o: boolean) => void;
   dimmed?: boolean;
   hideChevron?: boolean; // when shown standalone in a dialog
+  hidePriceOnTop?: boolean;
 }) {
   const qc = useQueryClient();
   const { selectedLocked: locked, months } = useMonthCtx();
@@ -369,8 +371,9 @@ export function TenantRow({
   return (
     <Card
       className={cn(
-        "overflow-hidden transition-all duration-200",
-        open && "ring-2 ring-primary/40",
+        "transition-all duration-200",
+        !open && "overflow-hidden",
+        open && "relative z-50 overflow-visible focused-gemini-glow",
         dimmed && "scale-[0.99] opacity-40",
       )}
     >
@@ -479,27 +482,31 @@ export function TenantRow({
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
-              {bill && !vacant ? (
-                <button
-                  type="button"
-                  title="Xem thẻ thanh toán"
-                  onClick={(e) => {
-                    // desktop only: clicking the price opens the payment card
-                    if (typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches) {
-                      e.stopPropagation();
-                      setCardOpen(true);
-                    }
-                  }}
-                  className="cursor-default text-right transition-opacity sm:w-36 sm:cursor-pointer sm:hover:opacity-70"
-                >
-                  {totalEl}
-                </button>
-              ) : (
-                <div className="sm:w-36 sm:text-right">{totalEl}</div>
+              {!hidePriceOnTop && (
+                <>
+                  {bill && !vacant ? (
+                    <button
+                      type="button"
+                      title="Xem thẻ thanh toán"
+                      onClick={(e) => {
+                        // desktop only: clicking the price opens the payment card
+                        if (typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches) {
+                          e.stopPropagation();
+                          setCardOpen(true);
+                        }
+                      }}
+                      className="cursor-default text-right transition-opacity sm:w-36 sm:cursor-pointer sm:hover:opacity-70"
+                    >
+                      {totalEl}
+                    </button>
+                  ) : (
+                    <div className="sm:w-36 sm:text-right">{totalEl}</div>
+                  )}
+                  {/* vertical divider — fixed widths on both sides keep it at the
+                      same x across every row, so the dividers line up as a column */}
+                  <div className="hidden w-px self-stretch bg-border sm:block" />
+                </>
               )}
-              {/* vertical divider — fixed widths on both sides keep it at the
-                  same x across every row, so the dividers line up as a column */}
-              <div className="hidden w-px self-stretch bg-border sm:block" />
               <div className="flex justify-end sm:w-28 sm:justify-start">{statusEl}</div>
             </div>
             {!hideChevron && (

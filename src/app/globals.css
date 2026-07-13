@@ -146,3 +146,12 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Glowing accent outline ring for focused areas */
+.focused-gemini-glow {
+  position: relative;
+  z-index: 50;
+  box-shadow: 
+    0 0 0 2.5px color-mix(in srgb, var(--primary) 85%, transparent), 
+    0 0 12px 3px color-mix(in srgb, var(--primary) 45%, transparent);
+}

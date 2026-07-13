@@ -127,6 +127,12 @@ export default function TenantsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      {openId !== null && (
+        <div
+          className="fixed inset-0 z-40 bg-transparent"
+          onClick={() => setOpenId(null)}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-extrabold tracking-tight">Phòng thuê</h1>
         <div className="flex items-center gap-3">

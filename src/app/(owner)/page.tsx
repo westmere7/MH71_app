@@ -293,6 +293,7 @@ export default function OverviewPage() {
               buildingName={settings?.building_name ?? "MH71"}
               open
               hideChevron
+              hidePriceOnTop
               onOpenChange={() => {
                 /* dialog owns close (X / Esc / overlay) — don't collapse on click */
               }}
