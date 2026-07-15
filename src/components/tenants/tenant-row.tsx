@@ -57,6 +57,8 @@ export function TenantRow({
   dimmed,
   hideChevron,
   hidePriceOnTop = false,
+  highlighted,
+  onMenuOpenChange,
 }: {
   room: Room;
   bill: Bill | null;
@@ -69,6 +71,8 @@ export function TenantRow({
   dimmed?: boolean;
   hideChevron?: boolean; // when shown standalone in a dialog
   hidePriceOnTop?: boolean;
+  highlighted?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
 }) {
   const qc = useQueryClient();
   const { selectedLocked: locked, months } = useMonthCtx();
@@ -362,18 +366,21 @@ export function TenantRow({
         onChoose={onChoose}
         disabled={statusDisabled}
         allowPaidOnly={locked}
+        onOpenChange={onMenuOpenChange}
       />
     </div>
   ) : (
     <span className="text-sm text-muted">Chưa có hoá đơn</span>
   );
 
+  const shouldHighlight = highlighted ?? open;
+
   return (
     <Card
       className={cn(
         "transition-all duration-200",
-        !open && "overflow-hidden",
-        open && "relative z-50 overflow-visible focused-gemini-glow",
+        !shouldHighlight && "overflow-hidden",
+        shouldHighlight && "relative z-50 overflow-visible focused-gemini-glow",
         dimmed && "scale-[0.99] opacity-40",
       )}
     >

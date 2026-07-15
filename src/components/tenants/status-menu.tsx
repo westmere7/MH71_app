@@ -40,11 +40,13 @@ export function StatusMenu({
   onChoose,
   disabled,
   allowPaidOnly,
+  onOpenChange,
 }: {
   status: PaymentStatus;
   onChoose: (c: StatusChoice) => void;
   disabled?: boolean;
   allowPaidOnly?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const meta = PAYMENT_STATUS[status];
   const current = statusChoiceOf(status);
@@ -52,8 +54,13 @@ export function StatusMenu({
   // open state captured at pointer-down, before any dismiss fires
   const wasOpenOnDown = React.useRef(false);
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger
         disabled={disabled}
         // Radix opens on pointer-down, which a touch-scroll triggers too. Suppress
@@ -63,7 +70,11 @@ export function StatusMenu({
           e.preventDefault();
         }}
         onClick={() => {
-          if (!disabled) setOpen(!wasOpenOnDown.current);
+          if (!disabled) {
+            const nextOpen = !wasOpenOnDown.current;
+            setOpen(nextOpen);
+            onOpenChange?.(nextOpen);
+          }
         }}
         className={cn(
           "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50",

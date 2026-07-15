@@ -42,6 +42,7 @@ export default function TenantsPage() {
   const [filter, setFilter] = React.useState<Filter>("all");
   // single-open accordion: the expanded card stays in focus, the rest dim out
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = React.useState<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
 
   // leave focus mode on Escape or a click outside the list (but not when a
@@ -226,12 +227,14 @@ export default function TenantsPage() {
               month={selectedMonth}
               buildingName={settings?.building_name ?? "MH71"}
               open={openId === room.id}
+              highlighted={openId === room.id || menuOpenId === room.id}
               onOpenChange={(o) =>
                 // opening while another card is focused just exits the focus
                 // first (one tap to defocus, another to open this one)
                 setOpenId((cur) => (o ? (cur && cur !== room.id ? null : room.id) : null))
               }
-              dimmed={openId !== null && openId !== room.id}
+              dimmed={(openId !== null || menuOpenId !== null) && openId !== room.id && menuOpenId !== room.id}
+              onMenuOpenChange={(isOpen) => setMenuOpenId(isOpen ? room.id : null)}
             />
             );
           })}
