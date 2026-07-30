@@ -185,8 +185,7 @@ function AddRemoveMonthCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <p className="text-sm leading-relaxed text-muted">
-          Tạo kỳ tiếp theo: tự động chuyển số điện cuối kỳ thành số đầu kỳ mới, áp dụng bảng giá
-          hiện tại và giữ nguyên người thuê. Quản lý sẽ nhập số điện mới ở trang ghi điện.
+          Tạo kỳ tiếp theo: áp dụng bảng giá hiện tại và giữ nguyên danh sách người thuê phòng.
         </p>
         <Button
           onClick={() => {
