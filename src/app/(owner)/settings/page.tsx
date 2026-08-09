@@ -40,6 +40,7 @@ import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { PricingCard } from "@/components/settings/pricing-card";
 import { AuditLogCard } from "@/components/settings/audit-log-card";
@@ -658,12 +659,11 @@ function MeterExpenseCard({
         <div className="flex flex-col gap-2">
           <Label htmlFor="evn-bill">Tiền điện EVN phải trả (đ)</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
+            <CurrencyInput
               id="evn-bill"
-              inputMode="numeric"
               disabled={locked}
-              value={evn ? formatNumber(evn) : ""}
-              onChange={(e) => setEvn(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
+              value={evn}
+              onChange={setEvn}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !locked && evn !== month.evn_bill) saveEvn.mutate();
               }}

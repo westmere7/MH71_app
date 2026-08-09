@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -301,12 +302,10 @@ export function TenantFormDialog({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="t-base">Tiền phòng / tháng</Label>
-            <Input
+            <CurrencyInput
               id="t-base"
-              type="number"
-              inputMode="numeric"
               value={basePrice}
-              onChange={(e) => setBasePrice(Number(e.target.value))}
+              onChange={setBasePrice}
             />
             <p className="text-xs text-muted">
               Giá phòng của riêng tháng này. Tháng sau sẽ tự kế thừa.

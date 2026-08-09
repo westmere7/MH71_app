@@ -10,6 +10,7 @@ import { DEFAULT_TOTAL_COST } from "@/lib/constants";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { monthLabel, formatVND } from "@/lib/format";
 import type { Bill, MonthRow, Room, Settings } from "@/lib/supabase/types";
@@ -368,11 +369,9 @@ function MoneyInput({
   placeholder?: string;
 }) {
   return (
-    <Input
-      type="number"
-      inputMode="numeric"
-      value={Number.isFinite(value) ? value : 0}
-      onChange={(e) => onChange(Number(e.target.value))}
+    <CurrencyInput
+      value={value}
+      onChange={onChange}
       placeholder={placeholder}
       className={cn("h-10", compact ? "w-32" : "w-full")}
     />

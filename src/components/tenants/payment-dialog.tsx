@@ -9,8 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { formatVND, formatNumber } from "@/lib/format";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { formatVND } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Method = "paid_cash" | "paid_transfer";
@@ -35,28 +35,14 @@ export function PaymentDialog({
   const [method, setMethod] = React.useState<Method>(defaultMethod);
   const [partial, setPartial] = React.useState(false);
   const [amount, setAmount] = React.useState(total);
-  const [inputVal, setInputVal] = React.useState("");
 
   React.useEffect(() => {
     if (open) {
       setMethod(defaultMethod);
       setPartial(false);
       setAmount(total);
-      setInputVal(formatNumber(total));
     }
   }, [open, defaultMethod, total]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawDigits = e.target.value.replace(/\D/g, "");
-    if (!rawDigits) {
-      setInputVal("");
-      setAmount(0);
-    } else {
-      const val = parseInt(rawDigits, 10);
-      setInputVal(formatNumber(val));
-      setAmount(val);
-    }
-  };
 
   const owed = Math.max(total - amount, 0);
 
@@ -100,7 +86,6 @@ export function PaymentDialog({
               setPartial(e.target.checked);
               if (e.target.checked) {
                 setAmount(total);
-                setInputVal(formatNumber(total));
               }
             }}
             className="h-5 w-5 rounded-md accent-[var(--color-primary)]"
@@ -111,11 +96,9 @@ export function PaymentDialog({
         {partial && (
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold">Số tiền đã thu</span>
-            <Input
-              type="text"
-              inputMode="numeric"
-              value={inputVal}
-              onChange={handleInputChange}
+            <CurrencyInput
+              value={amount}
+              onChange={setAmount}
               autoFocus
             />
             <span className="text-sm text-warning">Còn nợ: {formatVND(owed)}</span>
