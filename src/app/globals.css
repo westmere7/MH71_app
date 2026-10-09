@@ -422,3 +422,189 @@ input[type="number"] {
     animation: fp-left-out 0.22s ease-in forwards;
   }
 }
+
+/* =====================================================================
+   Sơ đồ 3D (desktop) — CSS 3D. The camera lives in registered custom
+   properties so every move (presets, buttons) animates smoothly and the
+   floating call cards can counter-rotate to always face the viewer.
+   ===================================================================== */
+@property --fp-yaw {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: -18deg;
+}
+@property --fp-pitch {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 55deg;
+}
+@property --fp-zoom {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.7;
+}
+@property --fp-px {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@property --fp-py {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.fp3-viewport {
+  perspective: 1700px;
+  perspective-origin: 50% 38%;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  background: radial-gradient(
+    ellipse 60% 55% at 50% 48%,
+    color-mix(in srgb, var(--surface) 65%, transparent),
+    transparent 75%
+  );
+}
+.fp3-viewport::before {
+  display: none;
+}
+.fp3-viewport.is-dragging {
+  cursor: grabbing;
+}
+.fp3-world {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  transform: translate(var(--fp-px), var(--fp-py)) scale(var(--fp-zoom)) rotateX(var(--fp-pitch))
+    rotateZ(var(--fp-yaw));
+  transition:
+    --fp-yaw 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --fp-pitch 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --fp-zoom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --fp-px 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --fp-py 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fp3-world.is-live {
+  transition: none;
+}
+
+/* boxes (rooms, walls) — NOTE: no opacity/filter/overflow on these groups,
+   it would flatten the 3D; dimming is applied to the leaf faces instead */
+.fp3-box {
+  position: absolute;
+  transform-style: preserve-3d;
+  transition: transform 0.25s ease;
+  --fp3-wall: color-mix(in srgb, var(--surface) 80%, var(--muted-foreground));
+}
+.fp3-face {
+  position: absolute;
+  backface-visibility: hidden;
+  transition: opacity 0.2s ease;
+}
+.fp3-dim > .fp3-face {
+  opacity: 0.15;
+}
+.fp3-roof {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, white 22%, transparent),
+    inset 0 -10px 18px -10px color-mix(in srgb, black 18%, transparent);
+}
+.fp3-roof-selected {
+  box-shadow:
+    inset 0 0 0 3px var(--primary),
+    0 0 26px 4px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+.fp3-shadow {
+  background: color-mix(in srgb, black 24%, transparent);
+  filter: blur(7px);
+  transform: translateZ(-0.6px);
+}
+.fp3-door {
+  background: color-mix(in srgb, var(--fp3-wall) 62%, var(--brand));
+}
+.fp3-shutter {
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--fp3-wall) 72%, var(--brand)) 0 3px,
+    color-mix(in srgb, var(--fp3-wall) 58%, var(--brand)) 3px 5px
+  );
+}
+
+/* floating call cards */
+.fp3-label {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform: translateZ(var(--fp-h)) rotateZ(calc(var(--fp-yaw) * -1))
+    rotateX(calc(var(--fp-pitch) * -1));
+}
+.fp3-label-inner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) scale(calc(1 / max(var(--fp-zoom), 0.8)));
+}
+.fp3-label-inner > button {
+  pointer-events: auto;
+}
+.fp3-stem {
+  width: 1.5px;
+  height: calc(var(--fp-stem) * sin(var(--fp-pitch)) + 6px);
+}
+
+/* ground & surroundings — faint, fading outward */
+.fp3-ground {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--muted-foreground) 32%, transparent) 1.3px,
+    transparent 1.6px
+  );
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(ellipse 48% 46% at 50% 50%, #000 25%, transparent 72%);
+  mask-image: radial-gradient(ellipse 48% 46% at 50% 50%, #000 25%, transparent 72%);
+}
+.fp3-road {
+  background-color: var(--fp-road);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface) 75%, transparent) 50%,
+    transparent 50%
+  );
+  background-size: 2px 30px;
+  background-position: center;
+  background-repeat: repeat-y;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 32%, #000 68%, transparent);
+}
+.fp3-alley {
+  background-color: var(--fp-alley);
+  -webkit-mask-image: linear-gradient(to right, #000 45%, transparent);
+  mask-image: linear-gradient(to right, #000 45%, transparent);
+}
+.fp3-fade-down {
+  opacity: 0.7;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 90%);
+  mask-image: linear-gradient(to bottom, #000, transparent 90%);
+}
+.fp3-fade-up {
+  opacity: 0.7;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 90%);
+  mask-image: linear-gradient(to top, #000, transparent 90%);
+}
+.fp3-slab {
+  background: color-mix(in srgb, var(--surface) 55%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  box-shadow: 0 30px 80px -20px color-mix(in srgb, var(--brand) 50%, transparent);
+}
+.fp3-court {
+  background: color-mix(in srgb, var(--primary) 9%, var(--fp-floor));
+  border: 1px dashed color-mix(in srgb, var(--primary) 35%, transparent);
+}

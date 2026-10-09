@@ -212,9 +212,9 @@ function Neighbours({ direction }: { direction: "vertical" | "horizontal" }) {
 // ---------------------------------------------------------------------
 // a room
 // ---------------------------------------------------------------------
-type Tone = "none" | "vacant" | "paid" | "under" | "unpaid" | "power" | "unread" | "people";
+export type Tone = "none" | "vacant" | "paid" | "under" | "unpaid" | "power" | "unread" | "people";
 
-function toneOf(v: RoomView | undefined, lens: Lens): Tone {
+export function toneOf(v: RoomView | undefined, lens: Lens): Tone {
   if (!v || !v.bill) return "none";
   if (lens === "power") return v.recorded ? "power" : "unread";
   if (v.vacant) return "vacant";
@@ -272,8 +272,12 @@ function RoomTile({
   const kiosk = code.startsWith("K");
   const debt = (v?.prevOwed ?? 0) > 0;
 
-  // the door sits on the edge facing the corridor
-  const door = horizontal
+  // numbered rooms open onto the shared corridor; the kiosks open onto the road
+  const door = kiosk
+    ? horizontal
+      ? "left-0 top-1/2 w-[3px] h-2/5 -translate-y-1/2 rounded-r-full"
+      : "bottom-0 left-1/2 h-[3px] w-2/5 -translate-x-1/2 rounded-t-full"
+    : horizontal
     ? side === "alley"
       ? "bottom-0 left-1/2 h-[3px] w-2/5 -translate-x-1/2 rounded-t-full"
       : "top-0 left-1/2 h-[3px] w-2/5 -translate-x-1/2 rounded-b-full"
@@ -425,7 +429,7 @@ function TileBadges({
   );
 }
 
-function Metric({ v, lens, tone }: { v: RoomView | undefined; lens: Lens; tone: Tone }) {
+export function Metric({ v, lens, tone }: { v: RoomView | undefined; lens: Lens; tone: Tone }) {
   const base = "block truncate text-sm font-bold leading-tight tabular-nums";
   if (!v?.bill) return <span className={cn(base, "text-muted")}>—</span>;
   const b = v.bill;

@@ -73,7 +73,8 @@ export function RoomSheet({
           onInteractOutside={(e) => {
             // tapping another room on the map switches rooms instead of closing
             const target = e.target as Element | null;
-            if (target?.closest?.("[data-fp-room]")) e.preventDefault();
+            // …and dragging the 3D view around doesn't close it either
+            if (target?.closest?.("[data-fp-room],[data-fp-keep]")) e.preventDefault();
           }}
           style={drag ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}
           className={cn(

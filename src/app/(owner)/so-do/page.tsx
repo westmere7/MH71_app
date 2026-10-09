@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, X, Banknote, Zap, Users, Lock, FlaskConical, MousePointerClick } from "lucide-react";
+import { Search, X, Banknote, Zap, Users, Lock, FlaskConical, MousePointerClick, Box, Square } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { useRooms, useBills, useCurrentTenants, useAllTenants, useAllBills } from "@/lib/queries";
 import { computeMonthStats } from "@/lib/finance";
@@ -12,6 +12,7 @@ import { CountUp } from "@/components/dashboard/count-up";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FloorPlan } from "@/components/floor-plan/floor-plan";
+import { FloorPlan3D } from "@/components/floor-plan/floor-plan-3d";
 import { RoomSheet, type SheetSide } from "@/components/floor-plan/room-sheet";
 import {
   matchesQuery,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { Bill, MonthRow, Tenant } from "@/lib/supabase/types";
 
 const LENS_KEY = "mh71.sodo.lens";
+const VIEW3D_KEY = "mh71.sodo.3d";
 // the horizontal plan needs ~58rem to breathe; below that it stands upright
 const HORIZONTAL_MIN_REM = 58;
 
@@ -86,6 +88,31 @@ export default function FloorPlanPage() {
     }
   };
   const [query, setQuery] = React.useState("");
+
+  // ---- 3D view: desktop with a real mouse only (remembered) ----
+  const [can3d, setCan3d] = React.useState(false);
+  const [view3dPref, setView3dPref] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px) and (pointer: fine)");
+    const on = () => setCan3d(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    try {
+      setView3dPref(localStorage.getItem(VIEW3D_KEY) === "1");
+    } catch {
+      /* storage unavailable */
+    }
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const view3d = can3d && view3dPref;
+  const setView3d = (on: boolean) => {
+    setView3dPref(on);
+    try {
+      localStorage.setItem(VIEW3D_KEY, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
 
   // ---- selection / sheet ----
   const [selectedCode, setSelectedCode] = React.useState<string | null>(null);
@@ -369,13 +396,46 @@ export default function FloorPlanPage() {
             </button>
           ))}
         </div>
-        <Legend lens={lens} maxUnits={maxUnits} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+          <Legend lens={lens} maxUnits={maxUnits} />
+          {can3d && (
+            <div role="tablist" aria-label="Kiểu xem" className="inline-flex rounded-2xl border border-border bg-surface p-1 shadow-sm">
+              {[
+                { on: false, label: "2D", icon: Square },
+                { on: true, label: "3D", icon: Box },
+              ].map(({ on, label, icon: Icon }) => (
+                <button
+                  key={label}
+                  role="tab"
+                  aria-selected={view3d === on}
+                  onClick={() => setView3d(on)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-bold transition-all",
+                    view3d === on ? "bg-brand text-brand-foreground shadow" : "text-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* the plan */}
       <div ref={wrapRef} className="w-full">
         {loading || !orientation || !selectedMonth ? (
           <Skeleton className={cn("w-full rounded-3xl", orientation === "horizontal" ? "h-[24rem]" : "h-[70vh]")} />
+        ) : view3d ? (
+          <FloorPlan3D
+            views={views}
+            lens={lens}
+            query={query}
+            selectedCode={sheetOpen ? selectedCode : null}
+            maxUnits={maxUnits}
+            onSelect={select}
+          />
         ) : (
           <div className={cn(orientation === "vertical" && "mx-auto max-w-xl")}>
             <FloorPlan
@@ -411,7 +471,10 @@ export default function FloorPlanPage() {
       <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted">
         <MousePointerClick className="h-3.5 w-3.5" />
         Bấm vào một phòng để thu tiền, sửa thông tin hoặc xem thẻ thanh toán
-        <span className="hidden md:inline"> · ← → để chuyển phòng</span>
+        <span className="hidden md:inline">
+          {" "}
+          · ← → để chuyển phòng{can3d && !view3d ? " · thử chế độ 3D" : ""}
+        </span>
       </p>
 
       {selectedMonth && orientation && (
@@ -421,7 +484,7 @@ export default function FloorPlanPage() {
           onOpenChange={setSheetOpen}
           desktop={desktop}
           side={side}
-          orientation={orientation}
+          orientation={view3d ? "horizontal" : orientation}
           month={selectedMonth}
           buildingName={settings?.building_name ?? "MH71"}
           locked={selectedLocked}
