@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "./nav-items";
+import { visibleNavItems } from "./nav-items";
+import { useSettings } from "@/lib/queries";
 import { isActive } from "./sidebar";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
   const pathname = usePathname();
+  const settings = useSettings().data;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 pb-[env(safe-area-inset-bottom)]">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems(settings).map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           return (

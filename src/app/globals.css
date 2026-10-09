@@ -155,3 +155,270 @@ input[type="number"] {
     0 0 0 2.5px color-mix(in srgb, var(--primary) 85%, transparent), 
     0 0 12px 3px color-mix(in srgb, var(--primary) 45%, transparent);
 }
+
+/* =====================================================================
+   Sơ đồ (floor plan) — /so-do
+   The building is the hero; the surroundings (road, alley, neighbours,
+   blueprint dots) are faint and fade OUTWARD, away from the building.
+   ===================================================================== */
+.fp-canvas {
+  --fp-road: color-mix(in srgb, var(--muted-foreground) 15%, var(--background));
+  --fp-alley: color-mix(in srgb, var(--muted-foreground) 10%, var(--background));
+  --fp-floor: color-mix(in srgb, var(--muted-foreground) 6%, var(--surface));
+  isolation: isolate;
+}
+/* blueprint dots, vanishing toward the edges */
+.fp-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 1px,
+    transparent 1.2px
+  );
+  background-size: 18px 18px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 55% 50%, #000 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 70% 65% at 55% 50%, #000 25%, transparent 80%);
+  opacity: 0.7;
+}
+
+.fp-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+.fp-vlabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+/* --- surroundings: each strip fades away from the building --- */
+.fp-road,
+.fp-alley {
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.fp-road {
+  background-color: var(--fp-road);
+  background-repeat: repeat-y;
+}
+/* road on the LEFT of the building (desktop): fades leftward + at both ends */
+.fp-road-v {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface) 75%, transparent) 50%,
+    transparent 50%
+  );
+  background-size: 2px 22px;
+  background-position: center;
+  -webkit-mask-image: linear-gradient(to left, #000 30%, transparent),
+    linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(to left, #000 30%, transparent),
+    linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+}
+/* road BELOW the building (phone): fades downward + at both ends */
+.fp-road-h {
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--surface) 75%, transparent) 50%,
+    transparent 50%
+  );
+  background-size: 22px 2px;
+  background-position: center;
+  background-repeat: repeat-x;
+  -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent),
+    linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(to bottom, #000 30%, transparent),
+    linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+}
+.fp-alley {
+  background-color: var(--fp-alley);
+  /* fades toward the far (back) end, away from where it meets the road */
+  -webkit-mask-image: linear-gradient(var(--fp-alley-dir, to right), #000 35%, transparent 98%);
+  mask-image: linear-gradient(var(--fp-alley-dir, to right), #000 35%, transparent 98%);
+}
+.fp-alley-v {
+  --fp-alley-dir: to top;
+}
+.fp-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0 1px,
+    transparent 1px 7px
+  );
+}
+.fp-neighbours {
+  -webkit-mask-image: linear-gradient(var(--fp-nb-dir, to bottom), #000, transparent);
+  mask-image: linear-gradient(var(--fp-nb-dir, to bottom), #000, transparent);
+}
+
+/* --- the building: solid, lifted, clearly the main subject --- */
+.fp-building {
+  background: color-mix(in srgb, var(--surface) 55%, var(--background));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--surface) 80%, transparent) inset,
+    0 18px 40px -18px color-mix(in srgb, var(--brand) 45%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.fp-wall {
+  background: color-mix(in srgb, var(--muted-foreground) 38%, var(--surface));
+}
+.fp-corridor {
+  background-color: var(--fp-floor);
+  background-repeat: no-repeat;
+}
+.fp-corridor-h {
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--muted-foreground) 22%, transparent) 50%,
+    transparent 50%
+  );
+  background-size: 14px 1px;
+  background-position: center;
+  background-repeat: repeat-x;
+}
+.fp-corridor-v {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--muted-foreground) 22%, transparent) 50%,
+    transparent 50%
+  );
+  background-size: 1px 14px;
+  background-position: center;
+  background-repeat: repeat-y;
+}
+.fp-court {
+  background: color-mix(in srgb, var(--primary) 7%, var(--fp-floor));
+  border: 1px dashed color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/* --- motion --- */
+@keyframes fp-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+.fp-tile {
+  animation: fp-tile-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes fp-match {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 80%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 80%, transparent),
+      0 0 0 7px color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+}
+.fp-match {
+  animation: fp-match 1.6s ease-in-out infinite;
+}
+@keyframes fp-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.fp-pulse {
+  animation: fp-pulse 1.8s ease-in-out infinite;
+}
+@keyframes fp-nudge-x {
+  50% {
+    transform: translateX(3px);
+  }
+}
+@keyframes fp-nudge-y {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.fp-nudge-x {
+  animation: fp-nudge-x 1.6s ease-in-out infinite;
+}
+.fp-nudge-y {
+  animation: fp-nudge-y 1.6s ease-in-out infinite;
+}
+@keyframes fp-pop {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+.fp-pop {
+  animation: fp-pop 0.14s ease-out both;
+}
+
+/* --- room sheet: bottom sheet on phones, side drawer on desktop --- */
+@keyframes fp-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fp-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fp-up-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes fp-up-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes fp-right-in {
+  from {
+    transform: translateX(105%);
+  }
+}
+@keyframes fp-right-out {
+  to {
+    transform: translateX(105%);
+  }
+}
+@keyframes fp-left-in {
+  from {
+    transform: translateX(-105%);
+  }
+}
+@keyframes fp-left-out {
+  to {
+    transform: translateX(-105%);
+  }
+}
+.fp-overlay[data-state="open"] {
+  animation: fp-fade-in 0.2s ease-out;
+}
+.fp-overlay[data-state="closed"] {
+  animation: fp-fade-out 0.18s ease-in forwards;
+}
+.fp-sheet[data-state="open"] {
+  animation: fp-up-in 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.fp-sheet[data-state="closed"] {
+  animation: fp-up-out 0.22s ease-in forwards;
+}
+@media (min-width: 768px) {
+  .fp-sheet[data-side="right"][data-state="open"] {
+    animation: fp-right-in 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+  .fp-sheet[data-side="right"][data-state="closed"] {
+    animation: fp-right-out 0.22s ease-in forwards;
+  }
+  .fp-sheet[data-side="left"][data-state="open"] {
+    animation: fp-left-in 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+  .fp-sheet[data-side="left"][data-state="closed"] {
+    animation: fp-left-out 0.22s ease-in forwards;
+  }
+}

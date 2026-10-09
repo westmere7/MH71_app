@@ -26,6 +26,7 @@ export interface Settings {
   bank_account_no?: string | null;
   bank_account_name?: string | null;
   vietqr_template?: string | null;
+  show_floor_plan?: boolean; // show the experimental "Sơ đồ" tab (migration 0020)
 }
 
 export interface Room {

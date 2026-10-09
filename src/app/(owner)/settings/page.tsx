@@ -20,6 +20,7 @@ import {
   Archive,
   Download,
   ChevronDown,
+  FlaskConical,
 } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
 import { qk, useBills, useSettings, useRooms, useBackups } from "@/lib/queries";
@@ -105,6 +106,7 @@ export default function SettingsPage() {
       />
       <LockCard qc={qc} />
       <DisplayCard />
+      <ExperimentalCard qc={qc} />
       <QrCodeSettingsCard qc={qc} />
       <AuditLogCard />
     </div>
@@ -449,6 +451,53 @@ function LockCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             />
           </button>
         </label>
+    </CollapsibleCard>
+  );
+}
+
+/* --------------------------- experimental --------------------------- */
+function ExperimentalCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const settings = useSettings().data;
+  const on = settings?.show_floor_plan ?? false;
+
+  const toggle = useMutation({
+    mutationFn: (next: boolean) => updateSettings({ show_floor_plan: next }),
+    onSuccess: (_d, next) => {
+      qc.invalidateQueries({ queryKey: qk.settings });
+      toast.success(next ? "Đã bật tab Sơ đồ" : "Đã tắt tab Sơ đồ");
+    },
+    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0020."),
+  });
+
+  return (
+    <CollapsibleCard title="Tính năng thử nghiệm" icon={FlaskConical}>
+      <label className="flex cursor-pointer items-start justify-between gap-4">
+        <span className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">Hiện tab Sơ đồ</span>
+          <span className="text-sm text-muted">
+            Sơ đồ mặt bằng nhà trọ với thông tin từng phòng — bấm vào phòng để thu tiền, sửa
+            thông tin. Đang thử nghiệm, áp dụng cho mọi thiết bị.
+          </span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          onClick={() => toggle.mutate(!on)}
+          disabled={toggle.isPending}
+          className={cn(
+            "relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+            on ? "bg-primary" : "border border-border bg-surface-2",
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+              on ? "translate-x-[22px]" : "translate-x-0.5",
+            )}
+          />
+        </button>
+      </label>
     </CollapsibleCard>
   );
 }

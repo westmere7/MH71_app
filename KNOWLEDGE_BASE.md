@@ -75,6 +75,7 @@ by `AppShell` (sidebar + sticky top header with the month switcher + theme toggl
 | `/tenants` | **Phòng thuê** | `(owner)/tenants/page.tsx` — tenant cards |
 | `/thong-ke` | **Thống kê** | `(owner)/thong-ke/page.tsx` — dashboard/stats + chart |
 | `/settings` | **Cài đặt** | `(owner)/settings/page.tsx` — incl. pricing |
+| `/so-do` | **Sơ đồ** (experimental) | `(owner)/so-do/page.tsx` — floor plan; hidden from nav unless `settings.show_floor_plan`. Geometry in `src/components/floor-plan/layout.ts` |
 | `/login` | — | `(owner)`-excluded; owner sign-in |
 | `/dien` | — | manager meter page (password `mh71`) |
 
@@ -147,6 +148,7 @@ legacy — the UI treats it as `unpaid`.
 | 0008 | `bills.tenant_phone` (month-specific phone) |
 | 0009 | `settings.lock_past_months` (default **true**) |
 | 0010 | `months.evn_bill` (owner's actual EVN electricity bill) |
+| 0020 | `settings.show_floor_plan` (default **false**) — shows the experimental **Sơ đồ** tab |
 
 **Graceful-fallback pattern:** because code may run before a migration is applied,
 write paths try the new column and retry without it on a column-not-found error
