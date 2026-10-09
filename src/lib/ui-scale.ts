@@ -21,6 +21,12 @@ export function clampScale(s: number | null | undefined): number {
   return Math.min(MAX, Math.max(MIN, s));
 }
 
+export function getDeviceUiScale(): number {
+  if (typeof window === "undefined") return UI_SCALE_DEFAULT;
+  const cached = Number(localStorage.getItem(UI_SCALE_KEY));
+  return clampScale(cached);
+}
+
 /** Apply the scale by setting the root font-size as a percentage of the browser base. */
 export function applyUiScale(scale: number | null | undefined): void {
   if (typeof document === "undefined") return;

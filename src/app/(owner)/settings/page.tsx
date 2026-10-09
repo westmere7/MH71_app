@@ -41,7 +41,7 @@ import {
   DEFAULT_BANK_ACCOUNT_NAME,
   DEFAULT_VIETQR_TEMPLATE,
 } from "@/lib/vietqr";
-import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale } from "@/lib/ui-scale";
+import { UI_SCALES, UI_SCALE_KEY, UI_SCALE_DEFAULT, applyUiScale, getDeviceUiScale } from "@/lib/ui-scale";
 import { computeMonthStats } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleCard } from "@/components/ui/collapsible-card";
@@ -104,7 +104,7 @@ export default function SettingsPage() {
         hint="Áp dụng cho toàn bộ ứng dụng."
       />
       <LockCard qc={qc} />
-      <DisplayCard qc={qc} />
+      <DisplayCard />
       <QrCodeSettingsCard qc={qc} />
       <AuditLogCard />
     </div>
@@ -454,56 +454,53 @@ function LockCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 }
 
 /* ----------------------------- display ------------------------------ */
-function DisplayCard({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
-  const settings = useSettings().data;
-  const current = settings?.ui_scale ?? UI_SCALE_DEFAULT;
+function DisplayCard() {
+  const [current, setCurrent] = React.useState(UI_SCALE_DEFAULT);
 
-  const setScale = useMutation({
-    mutationFn: (scale: number) => updateSettings({ ui_scale: scale }),
-    // apply instantly for snappy feedback, then persist
-    onMutate: (scale: number) => {
-      applyUiScale(scale);
-      if (typeof window !== "undefined") localStorage.setItem(UI_SCALE_KEY, String(scale));
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.settings });
-      toast.success("Đã lưu cỡ hiển thị");
-    },
-    onError: () => toast.error("Lưu không thành công. Cần chạy migration 0007."),
-  });
+  React.useEffect(() => {
+    setCurrent(getDeviceUiScale());
+  }, []);
+
+  const selectScale = (scale: number) => {
+    applyUiScale(scale);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(UI_SCALE_KEY, String(scale));
+    }
+    setCurrent(scale);
+    toast.success("Đã lưu cỡ hiển thị cho thiết bị này");
+  };
 
   return (
     <CollapsibleCard title="Hiển thị" icon={ALargeSmall} contentClassName="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">Cỡ chữ &amp; giao diện</span>
-          <p className="text-sm text-muted">
-            Phóng to / thu nhỏ toàn bộ ứng dụng. Áp dụng ngay và lưu cho mọi thiết bị.
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {UI_SCALES.map((s) => {
-            const active = Math.abs(current - s.value) < 0.001;
-            return (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => !active && setScale.mutate(s.value)}
-                disabled={setScale.isPending}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 transition-colors disabled:opacity-60",
-                  active
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:bg-surface-2",
-                )}
-              >
-                <span className="font-extrabold leading-none" style={{ fontSize: `${s.value}rem` }}>
-                  A
-                </span>
-                <span className="text-xs font-semibold">{s.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-semibold">Cỡ chữ &amp; giao diện</span>
+        <p className="text-sm text-muted">
+          Phóng to / thu nhỏ toàn bộ ứng dụng. Chỉ áp dụng cho thiết bị này.
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {UI_SCALES.map((s) => {
+          const active = Math.abs(current - s.value) < 0.001;
+          return (
+            <button
+              key={s.value}
+              type="button"
+              onClick={() => selectScale(s.value)}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 transition-colors",
+                active
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border hover:bg-surface-2",
+              )}
+            >
+              <span className="font-extrabold leading-none" style={{ fontSize: `${s.value}rem` }}>
+                A
+              </span>
+              <span className="text-xs font-semibold">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </CollapsibleCard>
   );
 }
