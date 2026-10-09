@@ -107,7 +107,7 @@ export function PaymentDialog({
 
         <Button
           size="lg"
-          className="mt-1"
+          className="mt-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-base border-0 shadow-lg shadow-amber-500/25 transition-all active:scale-[0.98]"
           disabled={partial && amount > total}
           onClick={() => onConfirm(method, partial ? amount : null)}
         >
