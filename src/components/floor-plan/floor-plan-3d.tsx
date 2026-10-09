@@ -164,6 +164,7 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
     x: number;
     y: number;
     start: Cam;
+    spin: 1 | -1; // yaw direction so the grabbed part follows the cursor
     moved: number;
     code: string | null;
     el: HTMLElement | null;
@@ -177,6 +178,9 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
       x: e.clientX,
       y: e.clientY,
       start: { ...cam.current },
+      // grabbing the near half (below the building's centre) turns the other
+      // way from grabbing the far half — like spinning a turntable by hand
+      spin: e.clientY > centreY(e.currentTarget) ? -1 : 1,
       moved: 0,
       code: roomEl?.dataset.fpRoom ?? null,
       el: roomEl,
@@ -196,7 +200,7 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
     if (!dragging) setDragging(true);
     const c = cam.current;
     if (d.mode === "orbit") {
-      c.yaw = d.start.yaw + dx * 0.35;
+      c.yaw = d.start.yaw + d.spin * dx * 0.35;
       c.pitch = clamp(d.start.pitch - dy * 0.3, PITCH_MIN, PITCH_MAX);
     } else {
       c.px = d.start.px + dx;
@@ -225,6 +229,12 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
     else return;
     e.preventDefault();
   }
+
+  // screen y of the building's centre (viewport centre shifted by the pan)
+  const centreY = (vp: HTMLElement) => {
+    const r = vp.getBoundingClientRect();
+    return r.top + r.height / 2 + cam.current.py;
+  };
 
   const reset = () => goTo({ ...PRESETS[0].cam, zoom: fitZoom(), px: 0, py: 0 });
   const searching = query.trim().length > 0;
