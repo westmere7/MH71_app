@@ -11,6 +11,7 @@ import {
   Pause,
   TriangleAlert,
   Navigation2,
+  Tags,
   MousePointer2,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ const PITCH_MIN = 0;
 const PITCH_MAX = 78;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 3;
+const INFO_KEY = "mh71.sodo.3d.info";
 const DETAIL_ZOOM = 0.95; // zoomed in this far → cards show the tenant name
 
 export interface FloorPlan3DProps {
@@ -77,6 +79,24 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
   const [dragging, setDragging] = React.useState(false);
   const [hovered, setHovered] = React.useState<string | null>(null);
   const [yawDeg, setYawDeg] = React.useState(-18); // for the compass (updated sparingly)
+  // floating info cards for every room — off by default; hover / selection
+  // still shows the card for that one room. (Client-only component, so
+  // reading storage in the initializer can't cause a hydration mismatch.)
+  const [showInfo, setShowInfoState] = React.useState(() => {
+    try {
+      return localStorage.getItem(INFO_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setShowInfo = (on: boolean) => {
+    setShowInfoState(on);
+    try {
+      localStorage.setItem(INFO_KEY, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
 
   // write the camera into CSS variables — no React render per frame
   const apply = React.useCallback((live: boolean) => {
@@ -311,6 +331,7 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
                   dim={searching && !match}
                   match={match}
                 />
+                {(showInfo || active) && (
                 <CallCard
                   code={code}
                   v={v}
@@ -324,6 +345,7 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
                   dim={searching && !match}
                   onSelect={onSelect}
                 />
+                )}
               </React.Fragment>
             );
           }),
@@ -351,6 +373,20 @@ export function FloorPlan3D({ views, lens, query, selectedCode, maxUnits, onSele
         <CtlBtn label="Xoay phải" onClick={() => goTo({ yaw: cam.current.yaw + 45 })}>
           <RotateCw className="h-4 w-4" />
         </CtlBtn>
+        <span className="mx-0.5 h-5 w-px bg-border" />
+        <button
+          type="button"
+          aria-pressed={showInfo}
+          title={showInfo ? "Ẩn thông tin các phòng (di chuột vào phòng vẫn hiện)" : "Hiện thông tin tất cả các phòng"}
+          onClick={() => setShowInfo(!showInfo)}
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition-colors",
+            showInfo ? "bg-primary text-primary-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground",
+          )}
+        >
+          <Tags className="h-4 w-4" />
+          Thông tin
+        </button>
         <span className="mx-0.5 h-5 w-px bg-border" />
         <CtlBtn label="Thu nhỏ" onClick={() => goTo({ zoom: clamp(cam.current.zoom / 1.3, ZOOM_MIN, ZOOM_MAX) })}>
           <ZoomOut className="h-4 w-4" />
@@ -515,9 +551,28 @@ function Box({
         );
       })}
       <div
-        className={cn("fp3-face fp3-roof", (tone === "vacant" || tone === "unread") && "fp-hatch", match && "fp-match", selected && "fp3-roof-selected")}
+        className={cn(
+          "fp3-face fp3-roof flex items-center justify-center",
+          (tone === "vacant" || tone === "unread") && "fp-hatch",
+          match && "fp-match",
+          selected && "fp3-roof-selected",
+        )}
         style={{ inset: 0, transform: `translateZ(${h}px)`, backgroundColor: roof ?? SHADE.north }}
-      />
+      >
+        {/* the room code, painted on the roof — always visible */}
+        {code && (
+          <span className="fp3-roof-code">
+            {code.startsWith("K") ? (
+              code
+            ) : (
+              <>
+                <span className="text-[0.6em] opacity-70">{code.replace(/\d+$/, "")}</span>
+                {code.replace(/^\D+/, "")}
+              </>
+            )}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

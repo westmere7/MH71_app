@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Search, X, Banknote, Zap, Users, Lock, FlaskConical, MousePointerClick, Box, Square } from "lucide-react";
 import { useMonthCtx } from "@/components/month-provider";
+import { useShowFloorPlan } from "@/lib/device-prefs";
 import { useRooms, useBills, useCurrentTenants, useAllTenants, useAllBills } from "@/lib/queries";
 import { computeMonthStats } from "@/lib/finance";
 import { isPaidStatus, isUnderpaid, paidAmountOf } from "@/lib/constants";
@@ -39,6 +40,7 @@ const LENSES: { value: Lens; label: string; icon: React.ElementType }[] = [
 // data on top. Tap a room → the same editable card as Phòng thuê.
 export default function FloorPlanPage() {
   const { selectedMonth, settings, isLoading, months, selectedLocked } = useMonthCtx();
+  const floorPlanOn = useShowFloorPlan(); // null until read on the client
   const roomsQ = useRooms();
   const billsQ = useBills(selectedMonth?.id ?? null);
   const tenantsQ = useCurrentTenants();
@@ -227,14 +229,14 @@ export default function FloorPlanPage() {
     setSelectedCode(next.room.code);
   }
 
-  const loading = isLoading || roomsQ.isLoading || billsQ.isLoading;
+  const loading = isLoading || roomsQ.isLoading || billsQ.isLoading || floorPlanOn === null;
 
-  if (!isLoading && !settings?.show_floor_plan) {
+  if (floorPlanOn === false) {
     return (
       <Card className="mx-auto mt-10 max-w-md">
         <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
           <FlaskConical className="h-8 w-8 text-info" />
-          <p className="text-muted">Tab Sơ đồ đang tắt. Bật trong Cài đặt → Tính năng thử nghiệm.</p>
+          <p className="text-muted">Tab Sơ đồ đang tắt trên thiết bị này. Bật trong Cài đặt → Hiển thị → Tính năng thử nghiệm.</p>
           <Link href="/settings" className="font-semibold text-primary hover:underline">
             Mở Cài đặt
           </Link>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HouseMark } from "@/components/brand/house-mark";
 import { visibleNavItems } from "./nav-items";
-import { useSettings } from "@/lib/queries";
+import { useShowFloorPlan } from "@/lib/device-prefs";
 import { SignOutButton } from "./sign-out-button";
 import { useAccount } from "@/lib/account";
 import { Avatar } from "@/components/ui/avatar";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const settings = useSettings().data;
+  const floorPlan = useShowFloorPlan() ?? false;
   const account = useAccount();
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-surface p-4 md:flex">
@@ -29,7 +29,7 @@ export function Sidebar() {
       <div className="mb-4 border-t border-border" />
 
       <nav className="flex flex-col gap-1.5">
-        {visibleNavItems(settings).map((item) => {
+        {visibleNavItems({ floorPlan }).map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
           return (
