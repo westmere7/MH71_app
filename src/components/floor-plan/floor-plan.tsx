@@ -1,10 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Check, Store, TriangleAlert, MapPin, ChevronUp, ChevronRight, Video } from "lucide-react";
+import {
+  Check,
+  Store,
+  TriangleAlert,
+  MapPin,
+  ChevronUp,
+  ChevronRight,
+  Video,
+  CalendarDays,
+  MousePointerClick,
+  ReceiptText,
+  X,
+} from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { StatusChip } from "@/components/tenants/status-menu";
-import { formatNumber, formatVND, formatVNDShort, formatDateTimeLong } from "@/lib/format";
+import { formatDate, formatNumber, formatVND, formatVNDShort, formatDateTimeLong, tenancyDuration } from "@/lib/format";
 import { paidAmountOf } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
@@ -472,21 +484,97 @@ export function Metric({ v, lens, tone }: { v: RoomView | undefined; lens: Lens;
 // ---------------------------------------------------------------------
 // hover card (mouse only) — the full numbers without opening anything
 // ---------------------------------------------------------------------
-function RoomHoverCard({ view: v, rect }: { view: RoomView; rect: DOMRect }) {
+export function RoomHoverCard({
+  view: v,
+  rect,
+  pinned,
+  onOpen,
+  onClose,
+}: {
+  view: RoomView;
+  rect: DOMRect;
+  /** pinned (3D: a selected room) — interactive, with a button to open the full sheet */
+  pinned?: boolean;
+  onOpen?: (el: HTMLElement) => void;
+  onClose?: () => void;
+}) {
   const W = 288;
-  const below = rect.top < 300;
+  // measured height, so the card can be kept fully inside the window
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [h, setH] = React.useState(300);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && Math.abs(el.offsetHeight - h) > 1) setH(el.offsetHeight);
+  });
   const left = Math.min(Math.max(rect.left + rect.width / 2 - W / 2, 8), window.innerWidth - W - 8);
-  const style: React.CSSProperties = below
-    ? { left, top: rect.bottom + 10, width: W }
-    : { left, top: rect.top - 10, width: W, transform: "translateY(-100%)" };
-  const b = v.bill;
+  // above the room when it fits, else below; always clamped on screen
+  const above = rect.top - 10 - h >= 8;
+  const top = Math.min(
+    Math.max(above ? rect.top - 10 - h : rect.bottom + 10, 8),
+    window.innerHeight - h - 8,
+  );
+  const style: React.CSSProperties = { left, top, width: W };
 
   return (
     <div
-      role="tooltip"
+      role={pinned ? "dialog" : "tooltip"}
+      aria-label={pinned ? `Phòng ${v.room.code}` : undefined}
+      // data-fp3-ui: the 3D viewport ignores pointer-downs from here (portal
+      // events still bubble to it through the React tree)
+      data-fp3-ui
+      ref={ref}
       style={style}
-      className="fp-pop pointer-events-none fixed z-[60] rounded-2xl border border-border bg-surface/95 p-3.5 shadow-2xl backdrop-blur"
+      className={cn("fp-pop fixed z-[60]", !pinned && "pointer-events-none")}
     >
+      <RoomDetailCard
+        view={v}
+        className={cn("bg-surface/95 backdrop-blur", pinned && "border-primary/50 ring-1 ring-primary/30")}
+        onClose={pinned ? onClose : undefined}
+        footer={
+          pinned ? (
+            <button
+              type="button"
+              onClick={(e) => onOpen?.(e.currentTarget)}
+              className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ReceiptText className="h-4 w-4" />
+              Xem chi tiết &amp; thu tiền
+            </button>
+          ) : undefined
+        }
+      />
+    </div>
+  );
+}
+
+/** The full at-a-glance card for one room (2D hover, 3D hover). */
+export function RoomDetailCard({
+  view: v,
+  className,
+  footer,
+  onClose,
+}: {
+  view: RoomView;
+  className?: string;
+  /** replaces the "click to open" hint */
+  footer?: React.ReactNode;
+  onClose?: () => void;
+}) {
+  const b = v.bill;
+  const tenure = !v.vacant ? tenancyDuration(v.tenant?.move_in_date) : null;
+
+  return (
+    <div className={cn("relative w-full rounded-2xl border border-border bg-surface p-3.5 text-left shadow-2xl", className)}>
+      {onClose && (
+        <button
+          type="button"
+          aria-label="Đóng"
+          onClick={onClose}
+          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-md hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
       <div className="flex items-center gap-3">
         {v.name && !v.vacant ? (
           <Avatar name={v.name} photoUrl={v.photoUrl} size={40} />
@@ -504,6 +592,24 @@ function RoomHoverCard({ view: v, rect }: { view: RoomView; rect: DOMRect }) {
         </div>
         {b && <StatusChip status={v.status ?? b.payment_status} />}
       </div>
+
+      {!v.vacant && (v.tenant?.move_in_date || v.tenant?.camera_access) && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          {v.tenant?.move_in_date && (
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Vào ở {formatDate(v.tenant.move_in_date)}
+              {tenure ? ` · ${tenure}` : ""}
+            </span>
+          )}
+          {v.tenant?.camera_access && (
+            <span className="inline-flex items-center gap-1 text-primary">
+              <Video className="h-3.5 w-3.5" />
+              Camera
+            </span>
+          )}
+        </div>
+      )}
 
       {b ? (
         <div className="mt-3 flex flex-col gap-1 border-t border-border pt-2.5 text-sm">
@@ -536,7 +642,12 @@ function RoomHoverCard({ view: v, rect }: { view: RoomView; rect: DOMRect }) {
       ) : (
         <p className="mt-3 border-t border-border pt-2.5 text-sm text-muted">Tháng này chưa có hoá đơn.</p>
       )}
-      <p className="mt-2.5 text-center text-[0.68rem] font-medium text-muted">Bấm để mở chi tiết &amp; thu tiền</p>
+      {footer ?? (
+        <p className="mt-2.5 flex items-center justify-center gap-1 text-center text-[0.68rem] font-medium text-muted">
+          <MousePointerClick className="h-3 w-3" />
+          Bấm để mở chi tiết &amp; thu tiền
+        </p>
+      )}
     </div>
   );
 }

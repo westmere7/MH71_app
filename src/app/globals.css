@@ -454,6 +454,14 @@ input[type="number"] {
   initial-value: 0px;
 }
 
+/* while the 3D view is mounted it runs to the bottom edge of the window */
+html[data-fp3] .app-footer {
+  display: none;
+}
+html[data-fp3] main {
+  padding-bottom: 12px;
+}
+
 .fp3-viewport {
   perspective: 1700px;
   perspective-origin: 50% 38%;
@@ -527,22 +535,6 @@ input[type="number"] {
     inset 0 0 0 3px var(--primary),
     0 0 26px 4px color-mix(in srgb, var(--primary) 55%, transparent);
 }
-.fp3-shadow {
-  background: color-mix(in srgb, black 24%, transparent);
-  filter: blur(7px);
-  transform: translateZ(-0.6px);
-}
-.fp3-door {
-  background: color-mix(in srgb, var(--fp3-wall) 62%, var(--brand));
-}
-.fp3-shutter {
-  background: repeating-linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--fp3-wall) 72%, var(--brand)) 0 3px,
-    color-mix(in srgb, var(--fp3-wall) 58%, var(--brand)) 3px 5px
-  );
-}
-
 /* floating call cards */
 .fp3-label {
   position: absolute;
@@ -584,7 +576,7 @@ input[type="number"] {
   background-color: var(--fp-road);
   background-image: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--surface) 75%, transparent) 50%,
+    color-mix(in srgb, #e3b341 70%, transparent) 50%,
     transparent 50%
   );
   background-size: 2px 30px;
@@ -614,6 +606,205 @@ input[type="number"] {
   box-shadow: 0 30px 80px -20px color-mix(in srgb, var(--brand) 50%, transparent);
 }
 .fp3-court {
-  background: color-mix(in srgb, var(--primary) 9%, var(--fp-floor));
-  border: 1px dashed color-mix(in srgb, var(--primary) 35%, transparent);
+  background-color: color-mix(in srgb, var(--muted-foreground) 14%, var(--surface));
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--muted-foreground) 24%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--muted-foreground) 24%, transparent) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+/* --- building details (modelled on the photos) --- */
+/* corrugated metal on the room roofs (not over the vacant hatch) */
+.fp3-roof:not(.fp-hatch) {
+  background-image: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, white 9%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}
+/* outer wall: darker lower half, light band, plain upper */
+.fp3-wall-out {
+  background-image: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--fp3-wall) 80%, black) 0 46%,
+    color-mix(in srgb, var(--fp3-wall) 55%, white) 46% 51%,
+    transparent 51%
+  );
+}
+/* corridor wall: tiled dado */
+.fp3-wall-in {
+  background-image:
+    repeating-linear-gradient(90deg, color-mix(in srgb, black 14%, transparent) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, black 12%, transparent) 0 1px, transparent 1px 4px),
+    linear-gradient(color-mix(in srgb, #a08a6c 50%, var(--fp3-wall)), color-mix(in srgb, #a08a6c 50%, var(--fp3-wall)));
+  background-size: 100% 26%;
+  background-position: bottom;
+  background-repeat: no-repeat;
+}
+/* end walls / facades: darker plinth */
+.fp3-wall-end {
+  background-image: linear-gradient(to top, color-mix(in srgb, var(--fp3-wall) 75%, black) 0 5px, transparent 5px);
+}
+.fp3-window {
+  background: color-mix(in srgb, var(--brand) 55%, var(--fp3-wall));
+  border: 1.5px solid color-mix(in srgb, var(--fp3-wall) 65%, white);
+  border-radius: 1px;
+}
+.fp3-door {
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--brand) 80%, black) 0 2px,
+    color-mix(in srgb, var(--brand) 55%, var(--fp3-wall)) 2px 4px
+  );
+}
+.fp3-ext {
+  background: #d9363e;
+  border-radius: 1px;
+}
+.fp3-ledge {
+  background: color-mix(in srgb, var(--fp3-wall) 82%, black);
+}
+.fp3-rail {
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--fp3-wall) 50%, var(--brand)) 0 1.5px,
+    transparent 1.5px 3.5px
+  );
+}
+.fp3-panels {
+  background: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--fp3-wall) 78%, black) 0 30%,
+    transparent 30% 35%
+  );
+}
+.fp3-glass {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--info) 30%, var(--fp3-wall)),
+    color-mix(in srgb, var(--brand) 55%, var(--fp3-wall))
+  );
+  border: 2px solid color-mix(in srgb, var(--fp3-wall) 50%, black);
+}
+.fp3-grille-green {
+  background: repeating-linear-gradient(to right, #3f8a6b 0 2px, color-mix(in srgb, #2c5f4c 70%, var(--fp3-wall)) 2px 5px);
+}
+.fp3-awning {
+  background: repeating-linear-gradient(to bottom, #5aa58a 0 3px, #468c73 3px 6px);
+}
+.fp3-gate {
+  background: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--fp3-wall) 55%, #555) 0 2px,
+    color-mix(in srgb, var(--brand) 70%, black) 2px 4px
+  );
+}
+.fp3-sign {
+  padding: 2px 3px;
+  border-radius: 2px;
+  background: linear-gradient(#2c3f8f, #1c2a66);
+  border: 1px solid color-mix(in srgb, white 30%, transparent);
+  color: #fff;
+  font-size: 5.5px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* clear corrugated sheets on steel trusses over the corridor */
+.fp3-skyroof {
+  pointer-events: none;
+  backface-visibility: visible;
+  background-color: color-mix(in srgb, white 14%, transparent);
+  background-image: linear-gradient(
+    to right,
+    transparent 0 calc(50% - 1px),
+    color-mix(in srgb, var(--muted-foreground) 45%, transparent) calc(50% - 1px) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+}
+
+/* trees — billboarded like the cards, but they scale with the world */
+.fp3-tree {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  /* stands on the forecourt (Z_COURT + 1) */
+  transform: translateZ(4px) rotateZ(calc(var(--fp-yaw) * -1)) rotateX(calc(var(--fp-pitch) * -1));
+}
+.fp3-tree-inner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+}
+.fp3-tree-crown {
+  width: var(--crown);
+  height: var(--crown);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #74c27c, #2f7d46 70%, #23603a);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.25);
+}
+.fp3-tree-trunk {
+  width: 3px;
+  height: calc(26px * sin(var(--fp-pitch)) + 2px);
+  margin-top: -4px;
+  background: #6b4f3a;
+}
+
+/* grass beside the alley and the open field beyond — faint, fading out */
+.fp3-grass {
+  background: color-mix(in srgb, #4f9d5a 22%, transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 50%, transparent);
+  mask-image: linear-gradient(to right, #000 50%, transparent);
+}
+.fp3-field {
+  background-color: color-mix(in srgb, #4f9d5a 12%, transparent);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, #4f9d5a 14%, transparent) 0 2px,
+    transparent 2px 14px
+  );
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 85%),
+    linear-gradient(to right, #000 40%, transparent);
+  mask-image: linear-gradient(to top, #000, transparent 85%), linear-gradient(to right, #000 40%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* --- neighbourhood (context only) --- */
+.fp3-ctx {
+  --fp3-wall: color-mix(in srgb, var(--muted-foreground) 24%, var(--background));
+}
+.fp3-ctx > .fp3-face {
+  opacity: var(--fp3-ctx-o, 0.5);
+}
+.fp3-road-side {
+  background-color: var(--fp-road);
+  -webkit-mask-image: linear-gradient(to left, #000 40%, transparent);
+  mask-image: linear-gradient(to left, #000 40%, transparent);
+}
+.fp3-lane {
+  background: color-mix(in srgb, #b49a74 22%, var(--background));
+  border-radius: 20px;
+  -webkit-mask-image: linear-gradient(to right, #000 55%, transparent);
+  mask-image: linear-gradient(to right, #000 55%, transparent);
+}
+.fp3-dirt {
+  background: radial-gradient(closest-side, color-mix(in srgb, #a8865e 26%, transparent), transparent);
+}
+.fp3-scrub {
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+.fp3-water {
+  background: color-mix(in srgb, #5b8fb0 30%, transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 50%, transparent);
+  mask-image: linear-gradient(to right, #000 50%, transparent);
 }

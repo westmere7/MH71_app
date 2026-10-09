@@ -470,14 +470,17 @@ export default function FloorPlanPage() {
         </div>
       )}
 
-      <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted">
-        <MousePointerClick className="h-3.5 w-3.5" />
-        Bấm vào một phòng để thu tiền, sửa thông tin hoặc xem thẻ thanh toán
-        <span className="hidden md:inline">
-          {" "}
-          · ← → để chuyển phòng{can3d && !view3d ? " · thử chế độ 3D" : ""}
-        </span>
-      </p>
+      {/* the 3D view carries its own hint */}
+      {!view3d && (
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted">
+          <MousePointerClick className="h-3.5 w-3.5" />
+          Bấm vào một phòng để thu tiền, sửa thông tin hoặc xem thẻ thanh toán
+          <span className="hidden md:inline">
+            {" "}
+            · ← → để chuyển phòng{can3d && !view3d ? " · thử chế độ 3D" : ""}
+          </span>
+        </p>
+      )}
 
       {selectedMonth && orientation && (
         <RoomSheet
