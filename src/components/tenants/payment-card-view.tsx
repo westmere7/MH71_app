@@ -1,6 +1,7 @@
 import * as React from "react";
 import { formatVND, formatNumber, monthLabel, periodLabel } from "@/lib/format";
 import type { Bill, MonthRow, Room } from "@/lib/supabase/types";
+import { generateVietQRUrl } from "@/lib/vietqr";
 
 function Row({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -24,9 +25,40 @@ export const PaymentCardView = React.forwardRef<
     month: MonthRow;
     tenantName: string | null;
     buildingName: string;
+    bankId?: string | null;
+    accountNo?: string | null;
+    accountName?: string | null;
+    template?: string | null;
+    exactAmountQr?: boolean;
     qrUrl?: string | null;
   }
->(function PaymentCardView({ bill, room, month, tenantName, buildingName, qrUrl }, ref) {
+>(function PaymentCardView(
+  {
+    bill,
+    room,
+    month,
+    tenantName,
+    buildingName,
+    bankId,
+    accountNo,
+    accountName,
+    template,
+    exactAmountQr = true,
+    qrUrl,
+  },
+  ref,
+) {
+  const vietQRUrl =
+    qrUrl ||
+    generateVietQRUrl({
+      bankId,
+      accountNo,
+      accountName,
+      template,
+      amount: exactAmountQr ? bill.total : null,
+      addInfo: exactAmountQr ? `MH71 ${room.code} T${month.month}` : `MH71 ${room.code}`,
+    });
+
   return (
     <div
       ref={ref}
@@ -70,17 +102,14 @@ export const PaymentCardView = React.forwardRef<
           Vui lòng thanh toán đúng hạn. Cảm ơn quý khách!
         </p>
 
-        {qrUrl && (
-          <div className="mt-4 flex flex-col items-center border-t border-dashed border-[#dfe3ee] pt-3">
-            <span className="mb-2 text-[13px] font-semibold text-[#5a647e]">
-              MÃ QR QUÉT THANH TOÁN
-            </span>
+        {vietQRUrl && (
+          <div className="mt-3 flex flex-col items-center border-t border-dashed border-[#dfe3ee] pt-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={qrUrl}
+              src={vietQRUrl}
               crossOrigin="anonymous"
               alt="QR Code thanh toán"
-              className="h-[280px] w-[280px] rounded-lg border border-[#e3e7f1] bg-white object-contain shadow-sm"
+              className="w-full max-w-[340px] aspect-square object-contain bg-white"
             />
           </div>
         )}

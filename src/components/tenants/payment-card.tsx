@@ -9,6 +9,7 @@ import { PaymentCardView } from "./payment-card-view";
 import type { Bill, MonthRow, Room } from "@/lib/supabase/types";
 import { toast } from "sonner";
 import { useSettings } from "@/lib/queries";
+import { formatVND } from "@/lib/format";
 
 export function PaymentCardDialog({
   open,
@@ -30,6 +31,7 @@ export function PaymentCardDialog({
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(false);
+  const [exactAmountQr, setExactAmountQr] = React.useState(true);
   const settings = useSettings().data;
 
   React.useEffect(() => setIsMobile(isMobileDevice()), []);
@@ -137,22 +139,40 @@ export function PaymentCardDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[92vh] flex flex-col p-4 sm:p-5 overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Thẻ thanh toán — {room.code}</DialogTitle>
         </DialogHeader>
 
-        <PaymentCardView
-          ref={cardRef}
-          bill={bill}
-          room={room}
-          month={month}
-          tenantName={tenantName ?? null}
-          buildingName={buildingName}
-          qrUrl={settings?.qr_code_url}
-        />
+        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 py-1">
+          <PaymentCardView
+            ref={cardRef}
+            bill={bill}
+            room={room}
+            month={month}
+            tenantName={tenantName ?? null}
+            buildingName={buildingName}
+            bankId={settings?.bank_id}
+            accountNo={settings?.bank_account_no}
+            accountName={settings?.bank_account_name}
+            template={settings?.vietqr_template}
+            exactAmountQr={exactAmountQr}
+          />
 
-        <div className="flex gap-2.5">
+          <div className="flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-sm font-medium">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={exactAmountQr}
+                onChange={(e) => setExactAmountQr(e.target.checked)}
+                className="h-4 w-4 rounded accent-primary cursor-pointer"
+              />
+              <span className="font-semibold text-foreground">QR đúng số tiền ({formatVND(bill.total)})</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex gap-2.5 shrink-0 pt-2 border-t border-border">
           <Button
             onClick={isMobile ? shareImage : copyImage}
             disabled={busy}

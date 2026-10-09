@@ -158,8 +158,21 @@ export async function updateSettings(patch: Partial<Settings>) {
   const sb = getSupabaseBrowser();
   let res = await sb.from("settings").update(patch).eq("id", 1).select().single();
   // drop columns whose migration may not be applied yet, then retry
-  if (res.error && /(qr_code_url|notify_email)/i.test(res.error.message ?? "")) {
-    const { qr_code_url, notify_email, ...fallbackPatch } = patch as any;
+  if (
+    res.error &&
+    /(qr_code_url|notify_email|bank_id|bank_account_no|bank_account_name|vietqr_template)/i.test(
+      res.error.message ?? "",
+    )
+  ) {
+    const {
+      qr_code_url,
+      notify_email,
+      bank_id,
+      bank_account_no,
+      bank_account_name,
+      vietqr_template,
+      ...fallbackPatch
+    } = patch as any;
     res = await sb.from("settings").update(fallbackPatch).eq("id", 1).select().single();
   }
   return unwrap(res);

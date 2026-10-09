@@ -22,6 +22,10 @@ export interface Settings {
   updated_at: string;
   qr_code_url?: string | null;
   notify_email?: string | null; // where to email when số điện is filled (migration 0017)
+  bank_id?: string | null; // (migration 0019)
+  bank_account_no?: string | null;
+  bank_account_name?: string | null;
+  vietqr_template?: string | null;
 }
 
 export interface Room {

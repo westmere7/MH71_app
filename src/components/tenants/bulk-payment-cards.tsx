@@ -160,7 +160,11 @@ export function BulkPaymentCards() {
                 month={selectedMonth}
                 tenantName={bill.tenant_name}
                 buildingName={settings?.building_name ?? "MH71"}
-                qrUrl={settings?.qr_code_url}
+                bankId={settings?.bank_id}
+                accountNo={settings?.bank_account_no}
+                accountName={settings?.bank_account_name}
+                template={settings?.vietqr_template}
+                exactAmountQr={true}
               />
             </div>
           ))}
