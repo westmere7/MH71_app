@@ -76,20 +76,35 @@ by `AppShell` (sidebar + sticky top header with the month switcher + theme toggl
 | `/thong-ke` | **Thống kê** | `(owner)/thong-ke/page.tsx` — dashboard/stats + chart |
 | `/settings` | **Cài đặt** | `(owner)/settings/page.tsx` — incl. pricing |
 | `/so-do` | **Sơ đồ** (experimental) | `(owner)/so-do/page.tsx` — floor plan; hidden from nav unless enabled on the device (Cài đặt → Hiển thị → Tính năng thử nghiệm; `src/lib/device-prefs.ts`). Geometry in `src/components/floor-plan/layout.ts` |
+| `/account` | — (avatar link in sidebar / mobile header) | `(owner)/account/page.tsx` — **Tài khoản**: display name, avatar, change password (Supabase `auth.updateUser`, stored in `user_metadata`; avatars upload to `tenant-photos/avatars/`) |
 | `/login` | — | `(owner)`-excluded; owner sign-in |
+| `/log` | — | standalone, chrome-free, always-dark live audit-log viewer (no AppShell, still owner-gated by `proxy.ts`) — `src/components/log/live-log.tsx` |
 | `/dien` | — | manager meter page (password `mh71`) |
 
 Nav order/labels: `src/components/layout/nav-items.ts`. Sidebar + bottom bar
 read the same list. There is a shared `(owner)/loading.tsx` skeleton so dynamic
 navigations feel instant (Next prefetches the loading state).
 
-API routes (server, service-role): `src/app/api/meter/{auth,data,note,submit}/route.ts`.
+API routes:
+
+- `src/app/api/meter/{auth,data,note,submit}/route.ts` — server, service-role,
+  public to `proxy.ts` but gated by the meter cookie.
+- `src/app/api/version/route.ts` — returns `{ v: VERCEL_GIT_COMMIT_SHA ?? "dev" }`
+  (no-store). Used by `UpdateWatcher` (see §12).
+
+`proxy.ts` treats `/login`, `/dien`, `/api/meter/*` as public; everything else
+(incl. `/log`, `/account`, `/api/version`) needs the owner session. Static assets
+(`.svg/.png/…`) are excluded by the matcher.
 
 ---
 
 ## 5. Auth
 
-- **Owner**: Supabase email/password. `proxy.ts` gates `(owner)` routes. It uses
+- **Owner**: Supabase email/password, **or a short username** (0011). The login
+  form resolves a username → email via the `email_for_username(uname)` RPC
+  (SECURITY DEFINER, executable by `anon`) over the private `app_logins` table
+  (RLS on, no policies), then signs in with that email. Usernames are provisioned
+  by hand in SQL (`insert into app_logins …`). `proxy.ts` gates `(owner)` routes. It uses
   **`getSession()` (local cookie read, no network)** — NOT `getUser()` — to keep
   navigation fast on mobile after idle. Data is protected by **RLS** on every
   query regardless, so the cheap routing check is safe.
@@ -106,17 +121,26 @@ in `src/lib/supabase/types.ts` (the Supabase clients are **untyped** — generic
 collapse to `never`, so results are cast to these types).
 
 - **settings** (singleton, `id = 1`): `building_name`, `electricity_rate`,
-  `trash_fee`, `collection_target_pct`, **`ui_scale`** (0007), **`lock_past_months`** (0009), `updated_at`.
+  `trash_fee`, `collection_target_pct`, **`ui_scale`** (0007), **`lock_past_months`** (0009),
+  `qr_code_url` (0014, **unused** — superseded by the VietQR fields; the
+  `qrUrl` override prop on `PaymentCardView` is never passed), **`notify_email`**
+  (0017; list separated by commas, semicolons or spaces), VietQR bank fields **`bank_id`**,
+  **`bank_account_no`**, **`bank_account_name`**, **`vietqr_template`** (0019),
+  `show_floor_plan` (0020, unused), `updated_at`.
 - **rooms**: `code` (K1/K2/P1–P24), `kind`, `default_rent`, **`default_trash`**,
   **`default_rate`** (0004; null = use the shared `settings` value), `sort_order`, `is_active`.
 - **tenants** (full history; **current = `move_out_date is null`**, enforced by a
   unique partial index — one current tenant per room): `room_id`, `name`, `phone`,
   `move_in_date`, `move_out_date`, `photo_url`, `notes`, `same_household`,
-  `camera_access`.
+  `camera_access`, **`documents`** (0013, `text[]` of image URLs — ID cards /
+  contracts, uploaded to the `tenant-photos` bucket with prefix `doc-tenant-<id>-`;
+  viewer + bulk delete in the tenant dialog/row).
 - **months** (per-month metadata): `year`, `month`, `period_start/end`,
   `meter_status`/`fee_status`/`collection_status` (enum `chua|dang|xong`),
   **`other_fees`** = "Chi phí tổng cộng", `meter_note_photo_url`,
-  **`meter_filled_at`** (0006), **`evn_bill`** (0010). `unique(year, month)`.
+  **`meter_filled_at`** (0006), **`evn_bill`** (0010), **`meter_notified_at`**
+  (0017; stamped on the first meter-fill email so it is never re-sent).
+  `unique(year, month)`.
 - **bills** (1 per room per month — the core record): `month_id`, `room_id`,
   `tenant_id`, **`tenant_name`** + **`tenant_phone`** (0008) snapshots,
   `reading_old`, `reading_new`, `electricity_rate`, `room_fee`, `trash_fee`,
@@ -125,6 +149,21 @@ collapse to `never`, so results are cast to these types).
   - **Generated columns (DB-computed, never write them):** `units = max(reading_new - reading_old, 0)`, `electricity_amount = units * electricity_rate`, `total = electricity_amount + room_fee + trash_fee`.
 - **payment_logs** (append-only): written automatically by a **trigger** on any
   `bills.payment_status` change (also auto-manages `paid_at`). Do not insert manually.
+- **audit_log** (0015/0016, append-only, read-only to clients): a SECURITY DEFINER
+  trigger `audit_capture()` on `settings`, `rooms`, `tenants`, `months`, `bills`
+  records every INSERT/UPDATE/DELETE as `before`/`after` jsonb with `actor`
+  (`auth.uid()` or DB role — so meter-route and manual SQL edits are captured too).
+  0016 skips a `bills` UPDATE that only changes the tenant snapshot
+  (`tenant_name`/`tenant_phone`/`tenant_id`), since the `tenants` row change is
+  already logged. View-and-proof only; **never used to undo**. Labels/formatting:
+  `src/lib/audit-format.ts`. Shown in Cài đặt (`AuditLogCard`) and `/log`.
+- **backups** (0018): manual "bản sao lưu" — a month's full bill set frozen as
+  jsonb (`data: BackupRoom[]`) plus `units_total`/`total_billed`. Create/delete/
+  CSV-export only (`createBackup`/`deleteBackup` in `mutations.ts`,
+  `src/lib/backup-csv.ts`); **never used to restore**. UI: the month card in Cài đặt.
+- **app_logins** (0011): `username → email` map for username login (see §5).
+- **v_bills_full** view: set `security_invoker = on` (0012) so it respects the
+  caller's RLS.
 
 Enums: `room_kind_t`, `progress_status_t (chua|dang|xong)`,
 `payment_status_t (unpaid|paid_cash|paid_transfer|partial|vacant)`. `partial` is
@@ -148,6 +187,15 @@ legacy — the UI treats it as `unpaid`.
 | 0008 | `bills.tenant_phone` (month-specific phone) |
 | 0009 | `settings.lock_past_months` (default **true**) |
 | 0010 | `months.evn_bill` (owner's actual EVN electricity bill) |
+| 0011 | `app_logins` + `email_for_username()` (username login) |
+| 0012 | `v_bills_full` → `security_invoker = on` |
+| 0013 | `tenants.documents` (`text[]`) |
+| 0014 | `settings.qr_code_url` — **unused** (replaced by 0019) |
+| 0015 | `audit_log` table + `audit_capture()` triggers |
+| 0016 | audit de-dupe (skip snapshot-only bill updates) |
+| 0017 | `months.meter_notified_at`, `settings.notify_email` |
+| 0018 | `backups` (manual month snapshots) |
+| 0019 | VietQR bank fields on `settings` (`bank_id`, `bank_account_no`, `bank_account_name`, `vietqr_template`) |
 | 0020 | `settings.show_floor_plan` — **unused** (the Sơ đồ toggle became per-device, localStorage `mh71.showFloorPlan`) |
 
 **Graceful-fallback pattern:** because code may run before a migration is applied,
@@ -233,6 +281,38 @@ blocked for the **current** calendar month (only future months can be deleted).
   updates current figures, button = "Cập nhật số điện" + a confirm dialog.
 - `/api/meter/note` is **upload-only** (returns a URL; does NOT touch the month —
   the photo only appears in the owner app after submit).
+- **Owner email on submit** (`src/lib/email.ts`, server-only, Resend REST API, no
+  SDK): after the submit responds (Next `after()`), the route emails a per-room số điện summary +
+  note photo. Kind = `"filled"` the first time (then stamps
+  `months.meter_notified_at`) or `"updated"` on a resubmit. Recipients =
+  `settings.notify_email` if set, else env `OWNER_NOTIFY_EMAIL`; one email per
+  address. Email failures are logged and swallowed — they **never** fail the submit.
+  Needs `RESEND_API_KEY`; `RESEND_FROM` defaults to `onboarding@resend.dev`, which
+  only delivers to the Resend account's own address.
+
+---
+
+## 11b. Payment cards & VietQR
+
+- **Thẻ thanh toán** (`src/components/tenants/payment-card*.tsx`): a per-room bill
+  card rendered by `PaymentCardView` and exported to PNG with **html-to-image**
+  (`toPng`). Desktop = copy image to clipboard (paste into Zalo) / download;
+  mobile = native share sheet → clipboard → download fallback. Opened from the
+  tenant row. **Bulk export** (`bulk-payment-cards.tsx`, on Phòng thuê) renders
+  every room's card and saves them into a folder picked via the File System Access
+  API (`showDirectoryPicker`, asked first because it needs the click's user
+  gesture), falling back to a ZIP download (JSZip) where that API is missing.
+- **VietQR** (`src/lib/vietqr.ts`): `generateVietQRUrl` builds an
+  `img.vietqr.io` image URL from the settings bank fields (defaults hard-coded in
+  the file and in 0019). Optional exact amount + `addInfo` (`MH71 <room> T<month>`).
+  `compact2` with no amount falls back to `compact` (avoids "Số tiền: 0").
+  Configured in Cài đặt → **Mã QR VietQR chuyển khoản**.
+- ⚠️ **Always request `.svg`**, not `.png`/`.jpg`: img.vietqr.io 301-redirects
+  those to `.svg` **without a CORS header**, and the card's `<img
+  crossOrigin="anonymous">` (required for html-to-image) then fails to load →
+  blank QR + "Không tạo được ảnh". The `.svg` response sends
+  `Access-Control-Allow-Origin: *` and is self-contained (embedded data URIs).
+  Any cross-origin image inside an exported card must be CORS-enabled.
 
 ---
 
@@ -259,6 +339,19 @@ blocked for the **current** calendar month (only future months can be deleted).
 - **lucide-react is `^1.21.0`** — unusual versioning; confirm an icon export exists
   before importing (`node -e "console.log(!!require('lucide-react').X)"`).
 - **Next 16 = `proxy.ts`**, not `middleware.ts`.
+- **New-deploy gate** (`UpdateWatcher`, mounted in `AppShell` → owner app only,
+  not `/dien`): records `/api/version` at boot, re-checks on focus / visibility /
+  bfcache restore and a 60s poll. On a new version it shows a full-screen blocking
+  "Tải lại" overlay (auto-reloads if the tab is hidden and shown again). Locally
+  the version is always `"dev"`, so it never fires in development.
+- **Image uploads** go through `uploadImage(bucket, file, prefix, …)` in
+  `src/lib/upload.ts` (browser-image-compression); everything uses the
+  `tenant-photos` bucket with prefixes (`room-<code>-`, `doc-tenant-<id>-`,
+  `avatars/`).
+- **Settings page layout** (`(owner)/settings/page.tsx`): month card (add/remove
+  month + backups) → **Cài đặt theo tháng** (Tiền điện: `evn_bill` + notify email;
+  Thiết lập giá) → **Cài đặt chung** (Khoá tháng đã qua, Hiển thị, Mã QR VietQR,
+  audit log).
 - **Hydration**: a `darkreader-lock` meta is rendered in the root layout; the month
   switcher uses a `mounted` guard. A residual `disabled`-attribute hydration warning
   on the month-switcher buttons is known/benign (browser-extension-ish).
@@ -273,6 +366,11 @@ In `.env.local` (gitignored) and on Vercel:
 - `SUPABASE_SERVICE_ROLE_KEY` — **server only** (used by `/api/meter/*` and the
   one-off scripts). Never expose to the client.
 - `METER_PASSWORD` (default `mh71`), `METER_COOKIE_SECRET` — `/dien` gate.
+- `RESEND_API_KEY`, `RESEND_FROM` (optional), `OWNER_NOTIFY_EMAIL` (fallback
+  recipients) — meter-fill email, server only (§11).
+- `VERCEL_GIT_COMMIT_SHA` — set by Vercel; read by `/api/version`.
+- `NEXT_PUBLIC_PRICING_PASSWORD` appears in `.env.local.example` but is **not
+  read anywhere** in `src/` (Thiết lập giá has no password gate now).
 
 ---
 
@@ -320,8 +418,18 @@ src/components/tenants/tenant-form-dialog.tsx
 src/components/tenants/status-menu.tsx       # StatusChip + StatusMenu (tap-not-scroll guard)
 src/components/settings/pricing-card.tsx     # Thiết lập giá (month-specific + review-before-save)
 src/components/dashboard/{stat-card,count-up,history-chart}.tsx
+src/components/tenants/payment-card{,-view}.tsx, bulk-payment-cards.tsx  # Thẻ thanh toán + ZIP export
+src/components/settings/audit-log-card.tsx, src/components/log/live-log.tsx  # audit log UI
+src/components/layout/update-watcher.tsx     # new-deploy reload gate
+src/components/floor-plan/{floor-plan,floor-plan-3d,layout,room-sheet}.tsx  # Sơ đồ (2D + pure-CSS 3D)
+src/lib/vietqr.ts                    # VietQR URL builder + bank list
+src/lib/email.ts                     # Resend meter email (server only)
+src/lib/backup-csv.ts                # backup → CSV download
+src/lib/audit-format.ts              # audit log labels/diffs
+src/lib/account.ts, src/lib/device-prefs.ts, src/lib/upload.ts
 src/lib/meter-auth.ts                # /dien cookie auth
 src/app/api/meter/*/route.ts         # manager meter endpoints (service role)
+src/app/api/version/route.ts         # deploy id for UpdateWatcher
 supabase/migrations/*.sql            # schema (user-applied)
 scripts/*.mjs                        # maintenance scripts
 records/*.pdf                        # original Google-Sheet export (history source)
