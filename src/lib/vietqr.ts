@@ -53,7 +53,11 @@ export function generateVietQRUrl(params: VietQRParams): string {
     template = "compact";
   }
 
-  const baseUrl = `https://img.vietqr.io/image/${bank}-${accNo}-${template}.png`;
+  // Request .svg directly: img.vietqr.io now 301-redirects .png/.jpg → .svg, and
+  // that redirect carries no CORS header. The card's <img crossOrigin="anonymous">
+  // (needed so html-to-image can export it) then fails to load. The .svg response
+  // itself sends Access-Control-Allow-Origin: * and is self-contained.
+  const baseUrl = `https://img.vietqr.io/image/${bank}-${accNo}-${template}.svg`;
   const queryParams = new URLSearchParams();
 
   if (hasAmount) {
